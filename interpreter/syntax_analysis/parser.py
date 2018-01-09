@@ -2,7 +2,8 @@
 
 from ..lexical_analysis.token_type import *
 from .tree import *
-from ..utils.utils import restorable
+from ..common.utils import restorable
+
 
 class SyntaxError(Exception):
     pass
@@ -10,11 +11,13 @@ class SyntaxError(Exception):
 
 class Parser(object):
     def __init__(self, lexer):
+        # use the lexer to fetch new tokens
         self.lexer = lexer
-        self.current_token = self.lexer.get_next_token  # set current token to the first token taken from the input
+        # set current token to the first token taken from the input
+        self.current_token = self.lexer.get_next_token
 
     def error(self, message):
-        raise SyntaxError(message)
+        raise SyntaxError("SyntaxError: " + message)
 
     def eat(self, token_type):
         """ Compare the current token type with the passed token
@@ -36,7 +39,7 @@ class Parser(object):
         program                     : declarations
         """
         root = Program(
-            declarations=self.declarations(),
+            children=self.declarations(),
             line=self.lexer.line
 
         )
@@ -196,9 +199,9 @@ class Parser(object):
         if self.current_token.type == ASSIGN:
             token = self.current_token
             self.eat(ASSIGN)
-            result.append(Assign(
+            result.append(Assignment(
                 left=var,
-                op=token,
+                token=token,
                 right=self.assignment_expression(),
                 line=self.lexer.line
             ))
@@ -290,15 +293,15 @@ class Parser(object):
             self.eat(LPAREN)
             condition = self.expression()
             self.eat(RPAREN)
-            tstatement = self.statement()
-            fstatement = self.empty()
+            true_body = self.statement()
+            false_body = self.empty()
             if self.current_token.type == ELSE:
                 self.eat(ELSE)
-                fstatement = self.statement()
+                false_body = self.statement()
             return IfStmt(
                 condition=condition,
-                tbody=tstatement,
-                fbody=fstatement,
+                true_body=true_body,
+                false_body=false_body,
                 line=self.lexer.line
             )
 
@@ -364,12 +367,6 @@ class Parser(object):
         self.eat(SEMICOLON)
         return node and node or NoOp(line=self.lexer.line)
 
-    def constant_expression(self):
-        """
-        constant_expression         : conditional_expression
-        """
-        return self.conditional_expression()
-
     def expression(self):
         """
         expression                  : assignment_expression (COMMA assignment_expression)*
@@ -401,9 +398,9 @@ class Parser(object):
             while self.current_token.type.endswith('ASSIGN'):
                 token = self.current_token
                 self.eat(token.type)
-                return Assign(
+                return Assignment(
                     left=node,
-                    op=token,
+                    token=token,
                     right=self.assignment_expression(),
                     line=self.lexer.line
                 )
@@ -416,13 +413,13 @@ class Parser(object):
         node = self.logical_and_expression()
         if self.current_token.type == QUESTION_MARK:
             self.eat(QUESTION_MARK)
-            texpression = self.expression()
+            true_exp = self.expression()
             self.eat(COLON)
-            fexpression = self.conditional_expression()
+            false_exp = self.conditional_expression()
             return TerOp(
                 condition=node,
-                texpression=texpression,
-                fexpression=fexpression,
+                true_exp=true_exp,
+                false_exp=false_exp,
                 line=self.lexer.line
             )
         return node
@@ -437,7 +434,7 @@ class Parser(object):
             self.eat(token.type)
             node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.logical_or_expression(),
                 line=self.lexer.line
             )
@@ -453,7 +450,7 @@ class Parser(object):
             self.eat(token.type)
             node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.inclusive_or_expression(),
                 line=self.lexer.line
             )
@@ -469,7 +466,7 @@ class Parser(object):
             self.eat(token.type)
             node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.exclusive_or_expression(),
                 line=self.lexer.line
             )
@@ -485,7 +482,7 @@ class Parser(object):
             self.eat(token.type)
             node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.and_expression(),
                 line=self.lexer.line
             )
@@ -493,15 +490,15 @@ class Parser(object):
 
     def and_expression(self):
         """
-        and_expression              : equality_expression (AND_OP equality_expression)*
+        and_expression              : equality_expression (AMPERSAND equality_expression)*
         """
         node = self.equality_expression()
-        while self.current_token.type == AND_OP:
+        while self.current_token.type == AMPERSAND:
             token = self.current_token
             self.eat(token.type)
             node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.equality_expression(),
                 line=self.lexer.line
             )
@@ -515,9 +512,9 @@ class Parser(object):
         while self.current_token.type in (EQ_OP, NE_OP):
             token = self.current_token
             self.eat(token.type)
-            return BinOp(
+            node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.relational_expression(),
                 line=self.lexer.line
             )
@@ -531,9 +528,9 @@ class Parser(object):
         while self.current_token.type in (LE_OP, LT_OP, GE_OP, GT_OP):
             token = self.current_token
             self.eat(token.type)
-            return BinOp(
+            node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.shift_expression(),
                 line=self.lexer.line
             )
@@ -547,9 +544,9 @@ class Parser(object):
         while self.current_token.type in (LEFT_OP, RIGHT_OP):
             token = self.current_token
             self.eat(token.type)
-            return BinOp(
+            node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.additive_expression(),
                 line=self.lexer.line
             )
@@ -557,16 +554,16 @@ class Parser(object):
 
     def additive_expression(self):
         """
-        additive_expression         : multiplicative_expression ((ADD_OP | SUB_OP) multiplicative_expression)*
+        additive_expression         : multiplicative_expression ((PLUS | MINUS) multiplicative_expression)*
         """
         node = self.multiplicative_expression()
 
-        while self.current_token.type in (ADD_OP, SUB_OP):
+        while self.current_token.type in (PLUS, MINUS):
             token = self.current_token
             self.eat(token.type)
             node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.multiplicative_expression(),
                 line=self.lexer.line
             )
@@ -583,7 +580,7 @@ class Parser(object):
             self.eat(token.type)
             node = BinOp(
                 left=node,
-                op=token,
+                token=token,
                 right=self.cast_expression(),
                 line=self.lexer.line
             )
@@ -608,7 +605,7 @@ class Parser(object):
             type_node = self.type_spec()
             self.eat(RPAREN)
             return UnOp(
-                op=type_node.token,
+                token=type_node.token,
                 expr=self.cast_expression(),
                 line=self.lexer.line
             )
@@ -619,9 +616,9 @@ class Parser(object):
         """
         unary_expression            : INC_OP unary_expression
                                     | DEC_OP unary_expression
-                                    | AND_OP cast_expression
-                                    | ADD_OP cast_expression
-                                    | SUB_OP cast_expression
+                                    | AMPERSAND cast_expression
+                                    | PLUS cast_expression
+                                    | MINUS cast_expression
                                     | LOG_NEG cast_expression
                                     | postfix_expression
         """
@@ -629,15 +626,15 @@ class Parser(object):
             token = self.current_token
             self.eat(token.type)
             return UnOp(
-                op=token,
+                token=token,
                 expr=self.unary_expression(),
                 line=self.lexer.line
             )
-        elif self.current_token.type in (AND_OP, ADD_OP, SUB_OP, LOG_NEG):
+        elif self.current_token.type in (AMPERSAND, PLUS, MINUS, LOG_NEG):
             token = self.current_token
             self.eat(token.type)
             return UnOp(
-                op=token,
+                token=token,
                 expr=self.cast_expression(),
                 line=self.lexer.line
             )
@@ -655,7 +652,7 @@ class Parser(object):
             token = self.current_token
             self.eat(token.type)
             node = UnOp(
-                op=token,
+                token=token,
                 expr=node,
                 line=self.lexer.line,
                 prefix=False
@@ -730,18 +727,22 @@ class Parser(object):
                 token=token,
                 line=self.lexer.line
             )
+        else:
+            self.error("Invalid constant type: {}".format(token.type))
 
     def type_spec(self):
         """
         type_spec                   : TYPE
         """
-        token = self.current_token
-        if token.type in (CHAR, INT, FLOAT, DOUBLE):
-            self.eat(token.type)
-            return Type(
-                token=token,
+        node = Type(
+                token=self.current_token,
                 line=self.lexer.line
             )
+        if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
+            self.eat(self.current_token.type)
+            return node
+        else:
+            self.error("Invalid type specifier: {}".format(self.current_token.type))
 
     def variable(self):
         """
@@ -764,15 +765,17 @@ class Parser(object):
         """
         string                      : STRING
         """
-        token = self.current_token
-        self.eat(STRING)
-        return String(
-            token=token,
+        node = String(
+            token=self.current_token,
             line=self.lexer.line
         )
+        self.eat(STRING)
+        return node
 
     def parse(self):
         """
+        Parses the list of tokens and returns a Program AstNode according to the following grammar:
+
         program                     : declarations
 
         declarations                : (include_library | function_declaration | declaration_list)*
@@ -813,8 +816,6 @@ class Parser(object):
 
         expression_statement        : expression* SEMICOLON
 
-        constant_expression         : conditional_expression
-
         expression                  : assignment_expression (COMMA assignment_expression)*
 
         assignment_expression       : assignment_expression (COMMA assignment_expression)*
@@ -830,7 +831,7 @@ class Parser(object):
 
         exclusive_or_expression     : and_expression (XOR_OP and_expression)*
 
-        and_expression              : equality_expression (AND_OP equality_expression)*
+        and_expression              : equality_expression (AMPERSAND equality_expression)*
 
         equality_expression         : relational_expression ((EQ_OP | NE_OP) relational_expression)*
 
@@ -838,7 +839,7 @@ class Parser(object):
 
         shift_expression            : additive_expression ((LEFT_OP | RIGHT_OP) additive_expression)*
 
-        additive_expression         : multiplicative_expression ((ADD_OP | SUB_OP) multiplicative_expression)*
+        additive_expression         : multiplicative_expression ((PLUS | MINUS) multiplicative_expression)*
 
         multiplicative_expression   : cast_expression ((MUL_OP | DIV_OP | MOD_OP) cast_expression)*
 
@@ -847,9 +848,9 @@ class Parser(object):
 
         unary_expression            : INC_OP unary_expression
                                     | DEC_OP unary_expression
-                                    | AND_OP cast_expression
-                                    | ADD_OP cast_expression
-                                    | SUB_OP cast_expression
+                                    | AMPERSAND cast_expression
+                                    | PLUS cast_expression
+                                    | MINUS cast_expression
                                     | LOG_NEG cast_expression
                                     | postfix_expression
 

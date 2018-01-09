@@ -6,10 +6,10 @@ Compiler Construction at [The Faculty Of Computer Science](https://raf.edu.rs/).
 Interpreter was designed and written by me, without using additional libraries. You can easily rewrite this to any
 other language. With this interpreter you can execute codes like following:
 
-* [example1](example1.c)
-* [example2](example2.c)
-* [example3](example3.c)
-* [example4](example4.c)
+* [example1](examples/c/example1.c)
+* [example2](examples/c/example2.c)
+* [example3](examples/c/example3.c)
+* [example4](examples/c/example4.c)
 
 ## Setup
 **Prerequsite**:<br/>
@@ -18,8 +18,8 @@ other language. With this interpreter you can execute codes like following:
 ### Running interpreter
 To execute c program, run `python3 __main__.py -f <file>`.
 
-For example, to run the [example1](example1.c):
+For example, to run the [example1](examples/c/example1.c):
 ```bash
 cd CInterpreter
-python3 __main__.py -f example1.c
+python3 __main__.py -f examples/c/example1.c
 ```

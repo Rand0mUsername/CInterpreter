@@ -1,8 +1,8 @@
 """
-This module file supports basic functions from math.h library
+Supports basic functions from math.h library.
 """
 
-from ..utils.utils import definition
+from ..common.utils import definition
 import math
 
 @definition(return_type='double', arg_types=['double'])

@@ -1,7 +1,9 @@
 """ SCI - Simple C Interpreter """
+
 from .token_type import *
 from .token import Token
 
+# maps strings that have a special meaning to corresponding tokens
 RESERVED_KEYWORDS = {
     'char': Token(CHAR, 'char'),
     'int': Token(INT, 'int'),
@@ -17,32 +19,38 @@ RESERVED_KEYWORDS = {
     'continue': Token(CONTINUE, 'continue'),
 }
 
-
 class LexicalError(Exception):
-    """ Class was created to isolate lexical errors """
     pass
-
 
 class Lexer(object):
     def __init__(self, text):
+        """
+        Initializes the lexer.
+
+        text: the source code to be lexically analyzed
+        pos: the current lexer position
+        current_char: the character at the current lexer position
+        line: the current line number
+        """
         self.text = text.replace('\\n', '\n')
         self.pos = 0
         self.current_char = self.text[self.pos]
         self.line = 1
 
     def error(self, message):
-        raise LexicalError(message)
+        """ Raises a lexical error. """
+        raise LexicalError("LexicalError: " + message)
 
-    def advance(self):
-        """ Advance the `pos` pointer and set the `current_char` variable. """
-        self.pos += 1
-        if self.pos > len(self.text) - 1:
+    def advance(self, n = 1):
+        """ Advances the `pos` pointer and sets the `current_char` variable. """
+        self.pos += n
+        if self.pos >= len(self.text):
             self.current_char = None  # Indicates end of input
         else:
             self.current_char = self.text[self.pos]
 
     def peek(self, n):
-        """ Check next n-th char but don't change state. """
+        """ Returns the n-th char from the current positions but don't change state. """
         peek_pos = self.pos + n
         if peek_pos > len(self.text) - 1:
             return None
@@ -50,14 +58,15 @@ class Lexer(object):
             return self.text[peek_pos]
 
     def skip_whitespace(self):
-        """ Skip all whitespaces between tokens from input """
+        """ Skips all whitespace starting from the current position. """
         while self.current_char is not None and self.current_char.isspace():
             if self.current_char == '\n':
                 self.line += 1
             self.advance()
 
     def skip_comment(self):
-        """ Skip single line comment """
+        """ Skips a single line comment starting at the current position. """
+        self.advance(2)
         while self.current_char is not None:
             if self.current_char == '\n':
                 self.line += 1
@@ -66,11 +75,11 @@ class Lexer(object):
             self.advance()
 
     def skip_multiline_comment(self):
-        """ Skip multi line comment """
+        """ Skip a multi line comment starting at the current position. """
+        self.advance(2)
         while self.current_char is not None:
             if self.current_char == '*' and self.peek(1) == '/':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return
             if self.current_char == '\n':
                 self.line += 1
@@ -78,7 +87,7 @@ class Lexer(object):
         self.error("Unterminated comment at line {}".format(self.line))
 
     def number(self):
-        """Return a (multidigit) integer or float consumed from the input."""
+        """Handles an integer or a real number."""
         result = ''
         while self.current_char is not None and self.current_char.isdigit():
             result += self.current_char
@@ -88,7 +97,7 @@ class Lexer(object):
             result += self.current_char
             self.advance()
 
-            while (self.current_char is not None and self.current_char.isdigit()):
+            while self.current_char is not None and self.current_char.isdigit():
                 result += self.current_char
                 self.advance()
 
@@ -99,13 +108,13 @@ class Lexer(object):
         return token
 
     def string(self):
-        """ Return string written in code without double quotes"""
+        """ Handles a string literal. """
         result = ''
         self.advance()
         while self.current_char is not '"':
             if self.current_char is None:
                 self.error(
-                    message='Unfinished string with \'"\' at line {}'.format(self.line)
+                    message='Unterminated string literal at line {}'.format(self.line)
                 )
             result += self.current_char
             self.advance()
@@ -113,30 +122,29 @@ class Lexer(object):
         return Token(STRING, result)
 
     def char(self):
-        """ Handle chars between single quotes """
+        """ Handles a character literal. """
         self.advance()
-        char = self.current_char
+        ch = self.current_char
         self.advance()
         if self.current_char != '\'':
-            self.error("Unclosed char constant at line {}".format(self.line))
+            self.error("Unterminated char literal at line {}".format(self.line))
         self.advance()
-        return Token(CHAR_CONST, ord(char))
+        return Token(CHAR_CONST, ord(ch))
 
     def _id(self):
-        """ Handle identifiers and reserved keywords """
+        """ Handles identifiers and reserved keywords. """
         result = ''
         while self.current_char is not None and self.current_char.isalnum():
             result += self.current_char
             self.advance()
 
+        # Return a reserved keyword token or an id token.
         token = RESERVED_KEYWORDS.get(result, Token(ID, result))
         return token
 
     @property
     def get_next_token(self):
-        """ Lexical analyzer (also known as scanner or tokenizer)
-        This method is responsible for breaking a sentence
-        apart into tokens. One token at a time. """
+        """ The main lexer method that returns the next token in the text. """
 
         while self.current_char is not None:
 
@@ -164,31 +172,28 @@ class Lexer(object):
             if self.current_char == '\'':
                 return self.char()
 
+            # three-char tokens
+
             if self.current_char == '<' and self.peek(1) == '<' and self.peek(2) == '=':
-                self.advance()
-                self.advance()
-                self.advance()
+                self.advance(3)
                 return Token(LEFT_ASSIGN, '<<=')
 
             if self.current_char == '>' and self.peek(1) == '>' and self.peek(2) == '=':
-                self.advance()
-                self.advance()
-                self.advance()
+                self.advance(3)
                 return Token(RIGHT_ASSIGN, '>>=')
 
+            # two-char tokens
+
             if self.current_char == '+' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(ADD_ASSIGN, '+=')
 
             if self.current_char == '-' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(SUB_ASSIGN, '-=')
 
             if self.current_char == '*' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(MUL_ASSIGN, '*=')
 
             if self.current_char == '/' and self.peek(1) == '=':
@@ -197,74 +202,62 @@ class Lexer(object):
                 return Token(DIV_ASSIGN, '/=')
 
             if self.current_char == '%' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(MOD_ASSIGN, '%=')
 
             if self.current_char == '&' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(AND_ASSIGN, '&=')
 
             if self.current_char == '^' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(XOR_ASSIGN, '^=')
 
             if self.current_char == '|' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(OR_ASSIGN, '|=')
 
             if self.current_char == '>' and self.peek(1) == '>':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(RIGHT_OP, '>>')
 
             if self.current_char == '<' and self.peek(1) == '<':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(LEFT_OP, '<<')
 
             if self.current_char == '+' and self.peek(1) == '+':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(INC_OP, '++')
 
             if self.current_char == '-' and self.peek(1) == '-':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(DEC_OP, '--')
 
             if self.current_char == '&' and self.peek(1) == '&':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(LOG_AND_OP, '&&')
 
             if self.current_char == '|' and self.peek(1) == '|':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(LOG_OR_OP, '||')
 
             if self.current_char == '<' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(LE_OP, '<=')
 
             if self.current_char == '>' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(GE_OP, '>=')
 
             if self.current_char == '=' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(EQ_OP, '==')
 
             if self.current_char == '!' and self.peek(1) == '=':
-                self.advance()
-                self.advance()
+                self.advance(2)
                 return Token(NE_OP, '!=')
+
+            # one-char tokens
 
             if self.current_char == '<':
                 self.advance()
@@ -284,7 +277,7 @@ class Lexer(object):
 
             if self.current_char == '&':
                 self.advance()
-                return Token(AND_OP, '&')
+                return Token(AMPERSAND, '&')
 
             if self.current_char == '|':
                 self.advance()
@@ -296,11 +289,11 @@ class Lexer(object):
 
             if self.current_char == '+':
                 self.advance()
-                return Token(ADD_OP, '+')
+                return Token(PLUS, '+')
 
             if self.current_char == '-':
                 self.advance()
-                return Token(SUB_OP, '-')
+                return Token(MINUS, '-')
 
             if self.current_char == '*':
                 self.advance()

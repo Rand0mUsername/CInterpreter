@@ -1,97 +1,119 @@
-class Node(object):
+
+class AstNode(object):
+    """ A node in the abstract syntax tree """
     def __init__(self, line):
         self.line = line
 
 
-class NoOp(Node):
+class NoOp(AstNode):
     pass
 
 
-class Num(Node):
+class Num(AstNode):
     def __init__(self, token, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
         self.token = token
+        # Numeric value
         self.value = token.value
 
 
-class String(Node):
+class String(AstNode):
     def __init__(self, token, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
         self.token = token
+        # String value
         self.value = token.value
 
 
-class Type(Node):
+class Type(AstNode):
     def __init__(self, token, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
         self.token = token
+        # Type name as a string
         self.value = token.value
 
 
-class Var(Node):
+class Var(AstNode):
     def __init__(self, token, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
         self.token = token
+        # Variable name as a string
         self.value = token.value
 
 
-class BinOp(Node):
-    def __init__(self, left, op, right, line):
-        Node.__init__(self, line)
+class BinOp(AstNode):
+    def __init__(self, left, token, right, line):
+        AstNode.__init__(self, line)
+        # Binary operator token
+        self.token = token
+        # BinOp arguments (AstNodes)
         self.left = left
-        self.token = self.op = op
         self.right = right
 
 
-class UnOp(Node):
-    def __init__(self, op, expr, line, prefix=True):
-        Node.__init__(self, line)
-        self.token = self.op = op
+class UnOp(AstNode):
+    def __init__(self, token, expr, line, prefix=True):
+        AstNode.__init__(self, line)
+        self.token = token
+        # UnOp argument (AstNode)
         self.expr = expr
+        # A flag indicating if this is a prefix operator
         self.prefix = prefix
 
 
-class TerOp(Node):
-    def __init__(self, condition, texpression, fexpression, line):
-        Node.__init__(self, line)
+class TerOp(AstNode):
+    def __init__(self, condition, true_exp, false_exp, line):
+        AstNode.__init__(self, line)
+        # A condition to be tested (AstNode)
         self.condition = condition
-        self.texpression = texpression
-        self.fexpression = fexpression
+        # Expressions to return based on the condition (AstNodes)
+        self.true_exp = true_exp
+        self.false_exp = false_exp
 
 
-class Assign(Node):
-    def __init__(self, left, op, right, line):
-        Node.__init__(self, line)
+class Assignment(AstNode):
+    def __init__(self, left, token, right, line):
+        AstNode.__init__(self, line)
+        # Variable node (Var)
         self.left = left
-        self.token = self.op = op
+        # Assignment token
+        self.token = token
+        # The expression to be assigned
         self.right = right
 
 
-class Expression(Node):
+class Expression(AstNode):
     def __init__(self, children, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # a list of comma-delimited sub-expressions (AstNodes)
         self.children = children
 
 
-class FunctionCall(Node):
+class FunctionCall(AstNode):
     def __init__(self, name, args, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # string name of the function
         self.name = name
-        self.args = args            # a list of Param nodes
+        # a list of Param AstNodes
+        self.args = args
 
 
-class IfStmt(Node):
-    def __init__(self, condition, tbody, line, fbody=None):
-        Node.__init__(self, line)
+class IfStmt(AstNode):
+    def __init__(self, condition, true_body, line, false_body=None):
+        AstNode.__init__(self, line)
+        # the expression AstNode to check
         self.condition = condition
-        self.tbody = tbody
-        self.fbody = fbody
+        # the expression AstNodes to execute
+        self.true_body = true_body
+        self.false_body = false_body
 
 
-class WhileStmt(Node):
+class WhileStmt(AstNode):
     def __init__(self, condition, body, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # the expression AstNode to check
         self.condition = condition
+        # the expression AstNode to execute
         self.body = body
 
 
@@ -99,88 +121,85 @@ class DoWhileStmt(WhileStmt):
     pass
 
 
-class ReturnStmt(Node):
+class ReturnStmt(AstNode):
     def __init__(self, expression, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # The expression AstNode to return
         self.expression = expression
 
 
-class BreakStmt(Node):
+class BreakStmt(AstNode):
     pass
 
 
-class ContinueStmt(Node):
+class ContinueStmt(AstNode):
     pass
 
 
-class ForStmt(Node):
+class ForStmt(AstNode):
     def __init__(self, setup, condition, increment, body, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # Three expression AstNodes in for header
         self.setup = setup
         self.condition = condition
         self.increment = increment
+        # The expression to execute
         self.body = body
 
 
-class CompoundStmt(Node):
+class CompoundStmt(AstNode):
     def __init__(self, children, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # A list of statement AstNodes that are compounded
         self.children = children
 
 
-class VarDecl(Node):
+class VarDecl(AstNode):
     def __init__(self, var_node, type_node, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # Variable name and type nodes
         self.var_node = var_node
         self.type_node = type_node
 
 
-class IncludeLibrary(Node):
+class IncludeLibrary(AstNode):
     def __init__(self, library_name, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # Library name as a string
         self.library_name = library_name
 
 
-class Param(Node):
+class Param(AstNode):
     def __init__(self, type_node, var_node, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # Function param: var and type nodes
         self.var_node = var_node
         self.type_node = type_node
 
 
-class FunctionDecl(Node):
+class FunctionDecl(AstNode):
     def __init__(self, type_node, func_name, params, body, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # Function return type (AstNode), name(string)
         self.type_node = type_node
         self.func_name = func_name
-        self.params = params            # a list of Param nodes
+        # A list of Param nodes
+        self.params = params
+        # AstNode expression to execute
         self.body = body
 
 
-class FunctionBody(Node):
+class FunctionBody(AstNode):
+    # Essentially the same as CompoundStmt but semantic analyzer
+    # treats them differently so the parser conforms
     def __init__(self, children, line):
-        Node.__init__(self, line)
+        AstNode.__init__(self, line)
+        # A list of statement AstNodes that are compounded
         self.children = children
 
 
-class Program(Node):
-    def __init__(self, declarations, line):
-        Node.__init__(self, line)
-        self.children = declarations
-
-
-###############################################################################
-#                                                                             #
-#  AST visitors (walkers)                                                     #
-#                                                                             #
-###############################################################################
-
-class NodeVisitor(object):
-    def visit(self, node):
-        method_name = 'visit_' + type(node).__name__
-        visitor = getattr(self, method_name, self.generic_visit)
-        return visitor(node)
-
-    def generic_visit(self, node):
-        raise Exception('No visit_{} method'.format(type(node).__name__))
-
+class Program(AstNode):
+    def __init__(self, children, line):
+        AstNode.__init__(self, line)
+        # The whole program, list of declaration AstNodes / includes
+        self.children = children

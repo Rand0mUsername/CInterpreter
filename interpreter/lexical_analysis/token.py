@@ -1,10 +1,9 @@
 class Token(object):
-    """ This class represents Token
-    Output from Lexical analysis is list of tokens"""
+    """ A single lexical token"""
 
-    def __init__(self, type, value):
-        self.type = type
-        self.value = value
+    def __init__(self, token_type, token_value):
+        self.type = token_type
+        self.value = token_value
 
     def __str__(self):
         """String representation of the class instance.

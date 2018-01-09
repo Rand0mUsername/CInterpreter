@@ -5,14 +5,14 @@ from interpreter.syntax_analysis.parser import SyntaxError
 from interpreter.syntax_analysis.tree import *
 
 class ParserTestCase(unittest.TestCase):
-    def makeParser(self, text):
+
+    def make_parser(self, text):
         lexer = Lexer(text)
         parser = Parser(lexer)
         return parser
 
-
     def test_libraries(self):
-        parser = self.makeParser("""
+        parser = self.make_parser("""
             #include <stdio.h>
             #include <stdlib.h>
             #include <math.h>
@@ -20,7 +20,7 @@ class ParserTestCase(unittest.TestCase):
         parser.parse()
 
     def test_functions(self):
-        parser = self.makeParser("""
+        parser = self.make_parser("""
            int main(){
            
            }
@@ -33,7 +33,7 @@ class ParserTestCase(unittest.TestCase):
         parser.parse()
 
     def test_declarations(self):
-        parser = self.makeParser("""
+        parser = self.make_parser("""
             int a, b = 2;
             int main(){
                 int a, b = 3, c = 1 - b ++;
@@ -43,7 +43,7 @@ class ParserTestCase(unittest.TestCase):
         parser.parse()
 
     def test_function_call(self):
-        parser = self.makeParser("""
+        parser = self.make_parser("""
             int a, b = 2;
             int main(){
                 int a = printf("%d %d", b, c);
@@ -52,7 +52,7 @@ class ParserTestCase(unittest.TestCase):
         parser.parse()
 
     def test_if_stmt(self):
-        parser = self.makeParser("""
+        parser = self.make_parser("""
             int a, b = 2;
             int main(){
                 if(a = b)
@@ -80,7 +80,7 @@ class ParserTestCase(unittest.TestCase):
         parser.parse()
 
     def test_for_stmt(self):
-        parser = self.makeParser("""
+        parser = self.make_parser("""
             int a, b = 2;
             int main(){
                 for(i = 0; i < n; i ++){
@@ -102,7 +102,7 @@ class ParserTestCase(unittest.TestCase):
         parser.parse()
 
     def test_while_do_stmt(self):
-        parser = self.makeParser("""
+        parser = self.make_parser("""
             int a, b = 2;
             int main(){
                 while(i < 1){
@@ -115,10 +115,13 @@ class ParserTestCase(unittest.TestCase):
                     }
                     
                 do{
-                    a = 1;
+                    a = 1 << 2 << 3;
                 }while(a < 5);
 
             }
         """)
         parser.parse()
 
+
+if __name__ == '__main__':
+    unittest.main()

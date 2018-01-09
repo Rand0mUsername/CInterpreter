@@ -1,8 +1,11 @@
 import random
+from .number import Number
 
 class Scope(object):
+    """ A scope (block/function) with its values table """
     def __init__(self, scope_name, parent_scope=None):
         self.scope_name = scope_name
+        # Parent_scope is None if this is a global scope or a function scope (top of the frame)
         self.parent_scope = parent_scope
         self._values = dict()
 
@@ -24,39 +27,51 @@ class Scope(object):
 
 
 class Frame(object):
-    def __init__(self, frame_name, global_scope):
+    """ A single stack frame, contains nested scopes """
+    def __init__(self, frame_name):
         self.frame_name = frame_name
-        self.current_scope = Scope(
+        # depth = 00
+        self.curr_scope = Scope(
             '{}.scope_00'.format(frame_name),
-            global_scope
+            None
         )
-        self.scopes = [self.current_scope]
 
     def new_scope(self):
-        self.current_scope = Scope(
+        # increase depth
+        self.curr_scope = Scope(
             '{}{:02d}'.format(
-                self.current_scope.scope_name[:-2],
-                int(self.current_scope.scope_name[-2:]) + 1
+                self.curr_scope.scope_name[:-2],
+                int(self.curr_scope.scope_name[-2:]) + 1
             ),
-            self.current_scope
+            self.curr_scope
         )
-        self.scopes.append(self.current_scope)
 
     def del_scope(self):
-        current_scope = self.current_scope
-        self.current_scope = current_scope.parent_scope
-        self.scopes.pop(-1)
-        del current_scope
+        self.curr_scope = self.curr_scope.parent_scope
+
+    def find_key(self, key):
+        scope = self.curr_scope
+        while scope and key not in scope:
+            scope = scope.parent_scope
+        return scope
+
+    def _get_scopes(self):
+        scopes = []
+        curr_scope = self.curr_scope
+        while curr_scope is not None:
+            scopes.append(curr_scope)
+            curr_scope = curr_scope.parent_scope
+        return scopes
 
     def __contains__(self, key):
-        return key in self.current_scope
+        return key in self._get_scopes()
 
     def __repr__(self):
         lines = [
             '{}\n{}'.format(
                 scope,
                 '-' * 40
-            ) for scope in self.scopes
+            ) for scope in self._get_scopes()
         ]
 
         title = 'Frame: {}\n{}\n'.format(
@@ -68,21 +83,25 @@ class Frame(object):
 
 
 class Stack(object):
+    """ A stack, contains stacked frames """
     def __init__(self):
-        self.frames = list()
-        self.current_frame = None
+        # curr_frame is always the last in the list
+        self.curr_frame = None
+        self.frames = []
 
-    def __bool__(self):
-        return bool(self.frames)
+    def is_empty(self):
+        return self.curr_frame is None
 
-    def new_frame(self, frame_name, global_scope=None):
-        frame = Frame(frame_name, global_scope=global_scope)
-        self.frames.append(frame)
-        self.current_frame = frame
+    def new_frame(self, frame_name):
+        self.frames.append(Frame(frame_name))
+        self.curr_frame = self.frames[-1]
 
     def del_frame(self):
         self.frames.pop(-1)
-        self.current_frame = len(self.frames) and self.frames[-1] or None
+        if len(self.frames) == 0:
+            self.curr_frame = None
+        else:
+            self.curr_frame = self.frames[-1]
 
     def __repr__(self):
         lines = [
@@ -92,43 +111,55 @@ class Stack(object):
 
 
 class Memory(object):
+    """ A simulated program memory, contains one global scope and a stack with frames """
     def __init__(self):
-        self.global_frame = Frame('GLOBAL_MEMORY', None)
+        self.global_scope = Scope('global_scope')
         self.stack = Stack()
 
-    def declare(self, key, value=random.randint(0, 2**32)):
-        ins_scope = self.stack.current_frame.current_scope if self.stack.current_frame else self.global_frame.current_scope
-        ins_scope[key] = value
+    def declare(self, var_type, var_name):
+        if self.stack.is_empty():
+            scope = self.global_scope
+        else:
+            scope = self.stack.curr_frame.curr_scope
+        scope[var_name] = Number(var_type, random.randint(0, 2**32))
+
+    def find_key(self, key):
+        """ Returns the scope with the given key starting from the current scope """
+        if self.stack.is_empty():
+            return self.global_scope
+        # Look in the current frame
+        scope = self.stack.curr_frame.find_key(key)
+        if scope is not None:
+            return scope
+        # If nothing try in the global scope
+        if key in self.global_scope:
+            return self.global_scope
+        # Semantic analysis should ensure the key exists, this should never happen
+        raise RuntimeError("Failed to find {} in the current scope".format(key))
 
     def __setitem__(self, key, value):
-        ins_scope = self.stack.current_frame.current_scope if self.stack.current_frame else self.global_frame.current_scope
-        curr_scope = ins_scope
-        while curr_scope and key not in curr_scope:
-            curr_scope = curr_scope.parent_scope
-        ins_scope = curr_scope if curr_scope else ins_scope
-        ins_scope[key] = value
+        scope = self.find_key(key)
+        scope[key] = value
 
-    def __getitem__(self, item):
-        curr_scope = self.stack.current_frame.current_scope if self.stack.current_frame else self.global_frame.current_scope
-        while curr_scope and item not in curr_scope:
-            curr_scope = curr_scope.parent_scope
-        return curr_scope[item]
+    def __getitem__(self, key):
+        scope = self.find_key(key)
+        return scope[key]
 
     def new_frame(self, frame_name):
-        self.stack.new_frame(frame_name, self.global_frame.current_scope)
+        self.stack.new_frame(frame_name)
 
     def del_frame(self):
         self.stack.del_frame()
 
     def new_scope(self):
-        self.stack.current_frame.new_scope()
+        self.stack.curr_frame.new_scope()
 
     def del_scope(self):
-        self.stack.current_frame.del_scope()
+        self.stack.curr_frame.del_scope()
 
     def __repr__(self):
         return "{}\nStack\n{}\n{}".format(
-            self.global_frame,
+            self.global_scope,
             '=' * 40,
             self.stack
         )

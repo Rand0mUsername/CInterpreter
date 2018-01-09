@@ -4,7 +4,7 @@ import argparse
 
 parser = argparse.ArgumentParser(description='Execute .c file')
 parser.add_argument('-f', '--file', help='File with C code')
-parser.add_argument('-c', '--code', help='Code of C code')
+parser.add_argument('-c', '--code', help='C code')
 
 args = parser.parse_args()
 if not args.file and not args.code:

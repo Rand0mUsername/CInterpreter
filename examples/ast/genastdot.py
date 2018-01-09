@@ -9,10 +9,9 @@ import textwrap
 
 from interpreter.lexical_analysis.lexer import Lexer
 from interpreter.syntax_analysis.parser import Parser
-from interpreter.syntax_analysis.tree import NodeVisitor
+from interpreter.common.visitor import Visitor
 
-
-class ASTVisualizer(NodeVisitor):
+class ASTVisualizer(Visitor):
     def __init__(self, parser):
         self.parser = parser
         self.ncount = 1
