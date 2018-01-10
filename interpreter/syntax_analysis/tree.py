@@ -111,6 +111,27 @@ class FunctionCall(AstNode):
         self.args = args
 
 
+class SwitchStmt(AstNode):
+    def __init__(self, expr, children, line):
+        AstNode.__init__(self, line)
+        # The expression to compare
+        self.expr = expr
+        # A list of statement/decl_list/case_label AstNodes that are compounded
+        self.children = children
+
+
+class SwitchCaseLabel(AstNode):
+    def __init__(self, expr, line):
+        AstNode.__init__(self, line)
+        # The expression to compare with
+        self.expr = expr
+
+
+class SwitchDefaultLabel(AstNode):
+    def __init__(self, line):
+        AstNode.__init__(self, line)
+
+
 class IfStmt(AstNode):
     def __init__(self, condition, true_body, line, false_body=None):
         AstNode.__init__(self, line)
@@ -162,10 +183,11 @@ class BreakStmt(AstNode):
 class ContinueStmt(AstNode):
     pass
 
+
 class CompoundStmt(AstNode):
     def __init__(self, children, line):
         AstNode.__init__(self, line)
-        # A list of statement AstNodes that are compounded
+        # A list of statement/decl_list AstNodes that are compounded
         self.children = children
 
 
@@ -209,7 +231,7 @@ class FunctionBody(AstNode):
     # treats them differently so the parser conforms
     def __init__(self, children, line):
         AstNode.__init__(self, line)
-        # A list of statement AstNodes that are compounded
+        # A list of statement/decl_list AstNodes that are compounded
         self.children = children
 
 

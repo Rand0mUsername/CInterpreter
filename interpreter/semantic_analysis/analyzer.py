@@ -236,6 +236,28 @@ class SemanticAnalyzer(Visitor):
 
         self.current_scope = self.current_scope.enclosing_scope
 
+    def visit_SwitchStmt(self, node):
+        expr = self.visit(node.expr)
+        default_case_label_seen = False
+        self.in_nested_switch += 1
+        for child in node.children:
+            if isinstance(child, SwitchDefaultLabel):
+                if default_case_label_seen:
+                    self.error("Multiple 'default' switch labels at line {}".format(node.line))
+                default_case_label_seen = True
+            elif isinstance(child, SwitchCaseLabel):
+                if default_case_label_seen:
+                    self.error("A 'default' switch labels should be the last label at line {}".format(node.line))
+                case_expr = self.visit(child.expr)
+                if expr != case_expr:
+                    self.error("Switch and case expressions have different types (<{}>) and (<{}>) at line {}".format(
+                        expr.type_name,
+                        case_expr.type_name,
+                        node.line))
+            else:
+                self.visit(child)
+        self.in_nested_switch -= 1
+
     def visit_IfStmt(self, node):
         """ if (condition) tbody else fbody """
         self.visit(node.condition)

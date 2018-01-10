@@ -139,6 +139,25 @@ class Interpreter(Visitor):
     def visit_ContinueStmt(self, node):
         return CF_CONTINUE
 
+    def visit_SwitchStmt(self, node):
+        expr = self.visit(node.expr)
+        # Find a case that matches
+        do_execute = False
+        for child in node.children:
+            if not do_execute:
+                if isinstance(child, SwitchCaseLabel):
+                    case_expr = self.visit(child.expr)
+                    if case_expr == expr:
+                        do_execute = True
+                elif isinstance(child, SwitchDefaultLabel):
+                    do_execute = True
+            else:
+                # execute!
+                if not isinstance(child, SwitchCaseLabel) and not isinstance(child, SwitchDefaultLabel):
+                    ret = self.visit(child)
+                    if type(ret) == str and ret in [CF_BREAK]:
+                        break
+
     def visit_IfStmt(self, node):
         if self.visit(node.condition):
             return self.visit(node.true_body)

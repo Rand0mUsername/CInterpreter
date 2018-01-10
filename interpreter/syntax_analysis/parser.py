@@ -212,6 +212,7 @@ class Parser(object):
         statement                   : iteration_statement
                                     | selection_statement
                                     | jump_statement
+                                    | switch_statement
                                     | compound_statement
                                     | expression_statement
         """
@@ -221,6 +222,8 @@ class Parser(object):
             return self.selection_statement()
         elif self.check_jump_statement():
             return self.jump_statement()
+        elif self.check_switch_statement():
+            return self.switch_statement()
         elif self.check_compound_statement():
             return self.compound_statement()
         return self.expression_statement()
@@ -277,6 +280,51 @@ class Parser(object):
             self.eat(CONTINUE)
             self.eat(SEMICOLON)
             return ContinueStmt(
+                line=self.lexer.line
+            )
+
+    @restorable
+    def check_switch_statement(self):
+        return self.current_token.type == SWITCH
+
+    def switch_statement(self):
+        """
+         switch_statement            : SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
+        """
+        if self.current_token.type == SWITCH:
+            self.eat(SWITCH)
+            self.eat(LPAREN)
+            expr = self.expression()
+            self.eat(RPAREN)
+            self.eat(LBRACKET)
+            result = []
+            while self.current_token.type != RBRACKET:
+                if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
+                    result.extend(self.declaration_list())
+                elif self.current_token.type in (CASE, DEFAULT):
+                    result.append(self.switch_case_label())
+                else:
+                    result.append(self.statement())
+            self.eat(RBRACKET)
+            return SwitchStmt(
+                expr=expr,
+                children=result,
+                line=self.lexer.line
+            )
+
+    def switch_case_label(self):
+        if self.current_token.type == CASE:
+            self.eat(CASE)
+            expr = self.expression()
+            self.eat(COLON)
+            return SwitchCaseLabel(
+                expr=expr,
+                line=self.lexer.line
+            )
+        else:
+            self.eat(DEFAULT)
+            self.eat(COLON)
+            return SwitchDefaultLabel(
                 line=self.lexer.line
             )
 
@@ -723,6 +771,7 @@ class Parser(object):
             return node
         else:
             return self.variable()
+            # TODO: [E] and case E: need to be const-exprs
 
     def constant(self):
         """

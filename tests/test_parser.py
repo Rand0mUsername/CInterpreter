@@ -173,27 +173,7 @@ class ParserTestCase(unittest.TestCase):
                 """)
         parser.parse()
 
-    def test_control_flow(self):
-        parser = self.make_parser("""
-                    int main() {
-                        int i, j = 0;
-                        for(i=0; i<5; i++) {
-                            j += i;
-                            if (j == 6) {
-                              break;
-                            }
-                        }
-                        i = 0;
-                        while(i < 10) {
-                            ++i;
-                            if (i == 5) {
-                                 continue;
-                            }
-                            j += i;
-                        }
-                    }
-                """)
-        parser.parse()
+
 
     def test_nested_control_flow(self):
         parser = self.make_parser("""
@@ -213,6 +193,27 @@ class ParserTestCase(unittest.TestCase):
                               break;
                             }
                         }
+                    }
+                """)
+        parser.parse()
+
+    def test_switch(self):
+        parser = self.make_parser("""
+                    int main() {
+                        int i = 4;
+                        switch (i+1) {
+                            case 1:
+                                 printf("1!");
+                                 break;
+                            case 2+2:
+                                 printf("4!");
+                            case 5:
+                                 printf("Fallthrough!");
+                                 break;
+                            default:
+                                 printf("Default");
+                        }
+                        return 0;
                     }
                 """)
         parser.parse()

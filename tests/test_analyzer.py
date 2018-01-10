@@ -207,7 +207,7 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                     }
                 """)
 
-    def invalid_control_flow(self):
+    def test_invalid_control_flow(self):
         with self.assertRaises(SemanticError):
             self.analyze("""
                         int foo() {
@@ -228,6 +228,79 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                             foo();
                         }
                     """)
+
+    def test_switch(self):
+        self.analyze("""
+                    #include <stdio.h>
+                    int main() {
+                        int i = 4;
+                        switch (i+1) {
+                            case 1:
+                                 printf("1!");
+                                 break;
+                            case 2+2:
+                                 printf("4!");
+                            case 5:
+                                 printf("Fallthrough!");
+                                 break;
+                            default:
+                                 printf("Default");
+                        }
+                        return 0;
+                    }
+                """)
+
+    def test_switch_errors(self):
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                        #include <stdio.h>
+                        int main() {
+                            int i = 4;
+                            switch (i+1) {
+                                case 1:
+                                     printf("1!");
+                                default:
+                                     printf("Default");
+                                case 6:
+                                     break;
+                            }
+                            return 0;
+                        }
+                    """)
+
+            with self.assertRaises(SemanticError):
+                self.analyze("""
+                            #include <stdio.h>
+                            int main() {
+                                int i = 4;
+                                switch (i+1) {
+                                    default:
+                                         printf("1!");
+                                    default:
+                                         printf("Default");
+                                    case 6:
+                                         break;
+                                }
+                                return 0;
+                            }
+                        """)
+
+            with self.assertRaises(SemanticError):
+                self.analyze("""
+                            #include <stdio.h>
+                            int main() {
+                                float i = 4.5;
+                                switch (i+1) {
+                                    case 1:
+                                         printf("1!");
+                                    default:
+                                         printf("Default");
+                                    case 6:
+                                         break;
+                                }
+                                return 0;
+                            }
+                        """)
 
 
 if __name__ == '__main__':

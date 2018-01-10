@@ -17,6 +17,9 @@ RESERVED_KEYWORDS = {
     'return': Token(RETURN, 'return'),
     'break': Token(BREAK, 'break'),
     'continue': Token(CONTINUE, 'continue'),
+    'switch': Token(SWITCH, 'switch'),
+    'case': Token(CASE, 'case'),
+    'default': Token(DEFAULT, 'default'),
 }
 
 class LexicalError(Exception):

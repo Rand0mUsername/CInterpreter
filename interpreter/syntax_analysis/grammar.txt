@@ -22,20 +22,27 @@
                 statement                   : iteration_statement
                                             | selection_statement
                                             | jump_statement
+                                            | switch_statement
                                             | compound_statement
                                             | expression_statement
 
+
                 compound_statement          : LBRACKET (declaration_list | statement)* RBRACKET
 
-                jump_statement              : RETURN expression? SEMICOLON
-                                            | BREAK SEMICOLON
-                                            | CONTINUE SEMICOLON
+                switch_statement            : SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
 
-                selection_statement         : IF LPAREN expression RPAREN statement (ELSE statement)?
+                switch_case                 : CASE expression COLON
+                                            | DEFAULT COLON
 
                 iteration_statement         : WHILE LPAREN expression RPAREN statement
                                             | DO statement WHILE LPAREN expression RPAREN SEMICOLON
                                             | FOR LPAREN expression_statement expression_statement (expression)? RPAREN statement
+
+                selection_statement         : IF LPAREN expression RPAREN statement (ELSE statement)?
+
+                jump_statement              : RETURN expression? SEMICOLON
+                                            | BREAK SEMICOLON
+                                            | CONTINUE SEMICOLON
 
                 expression_statement        : expression* SEMICOLON
 

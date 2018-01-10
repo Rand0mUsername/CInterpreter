@@ -39,5 +39,20 @@ int main() {
         j += i/2;
     }
     printf("%d %d %d %d\n", i, j, k, t); // 6 18 3 12
+
+    // switch
+    int c = 3;
+    switch (c+1) {
+        case 1:
+             printf("1!");
+             break;
+        case 2+2:
+             printf("4!");
+        case 5:
+             printf("Fallthrough!");
+             break;
+        default:
+             printf("Default");
+    }
     return 0;
 }

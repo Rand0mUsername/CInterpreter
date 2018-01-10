@@ -110,6 +110,15 @@ class LexerTestCase(unittest.TestCase):
             BREAK, CONTINUE, RETURN,
             lexer=lexer
         )
+
+    def test_switch(self):
+        lexer = Lexer('switch ( a ) { case 1 : break; default: break; }')
+        self.check_list(
+            SWITCH, LPAREN, ID, RPAREN, LBRACKET, CASE, INTEGER_CONST, COLON,
+            BREAK, SEMICOLON, DEFAULT, COLON, BREAK, SEMICOLON, RBRACKET,
+            lexer=lexer
+        )
+
     
 if __name__ == '__main__':
     unittest.main()
