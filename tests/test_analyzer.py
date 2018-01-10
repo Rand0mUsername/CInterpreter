@@ -119,6 +119,53 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                    }
                """)
 
+    def test_pointers_ok(self):
+        self.analyze("""
+                        int main(){
+                            int a;
+                            int* b = &a;
+                            char* c = a;
+                            char* d = *b;
+                            c += a;
+                            c += 3;
+                            c -= a;
+                            c--;
+                            --c;
+                            ++c;
+                            c++;
+                            int* e = b;
+                        }
+                    """)
+
+    def test_pointers(self):
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                int main(){
+                    char a;
+                    char* b = a;
+                }
+            """)
+
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                int main(){
+                    int a;
+                    char* b = &a;
+                    int* c = b;
+                }
+            """)
+
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                int main(){
+                    int a;
+                    int* b = &a;
+                    char c;
+                    b += c;
+                }
+            """)
+
+
 
 if __name__ == '__main__':
     unittest.main()

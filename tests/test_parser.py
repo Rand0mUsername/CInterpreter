@@ -122,6 +122,56 @@ class ParserTestCase(unittest.TestCase):
         """)
         parser.parse()
 
+    def test_pointers(self):
+        parser = self.make_parser("""
+                    int main(){
+                        int* a;
+                        int b;
+                        a = &b;
+                        int* c = a;
+                        *a = b;
+                    }
+                """)
+        parser.parse()
+
+    def test_pointers_error(self):
+        with self.assertRaises(SyntaxError):
+            parser = self.make_parser("""
+                        int main(){
+                            int* a;
+                            int b;
+                            a = &&b;
+                            int* c = a;
+                        }
+                    """)
+            parser.parse()
+
+    def test_pointers_sem_err(self):
+        parser = self.make_parser("""
+                           int main(){
+                               int* a;
+                               int b = a;
+                               a += b;
+                               int* c = a;
+                               c += c;
+                           }
+                       """)
+        parser.parse()
+
+    def test_more_pointers(self):
+        parser = self.make_parser("""
+                    int main(){
+                        int* a;
+                        int b;
+                        *a = b;
+                        int d = *a;
+                        *a++;
+                        (*a)++;
+                        --a;
+                        --(*a);
+                    }
+                """)
+        parser.parse()
 
 if __name__ == '__main__':
     unittest.main()

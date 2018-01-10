@@ -1,5 +1,5 @@
 import os
-path = '/home/skantar/Documents/Learning/CInterpreter/examples'
+path = input()
 
 print("PROCESSING...")
 for dir_name in sorted(os.listdir(path)):

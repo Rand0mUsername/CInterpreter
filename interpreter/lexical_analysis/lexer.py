@@ -297,7 +297,7 @@ class Lexer(object):
 
             if self.current_char == '*':
                 self.advance()
-                return Token(MUL_OP, '*')
+                return Token(ASTERISK, '*')
 
             if self.current_char == '/':
                 self.advance()

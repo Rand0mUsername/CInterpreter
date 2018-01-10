@@ -18,12 +18,17 @@ class InterpreterTestCase(unittest.TestCase):
         """)
 
     def test_files(self):
+        to_test = None
         for filename in os.listdir('./testdata'):
+            # temporary fix to test only one files
+            if to_test is not None and filename != to_test:
+                continue
+            # open the file, read the source and test
             with open(os.path.join('./testdata', filename), 'r') as file:
                 print(">>>>> Running " + filename + ":")
                 code = file.read()
                 self.assertEqual(self.interpret(code), 0)
-                print(">>>>> " + filename + " finished running with exit code 0.")
+                print(">>>>> " + filename + " finished running.")
                 print()
 
 

@@ -26,11 +26,24 @@ class String(AstNode):
 
 
 class Type(AstNode):
-    def __init__(self, token, line):
+    def __init__(self, token, line, pointer=False):
         AstNode.__init__(self, line)
+        # Base type token (T even for T*)
         self.token = token
-        # Type name as a string
+        # Type name as a string (T or T*)
         self.value = token.value
+        if pointer:
+            self.value += '*'
+
+
+class Lvalue(AstNode):
+    def __init__(self, var, line, dereferenced = False):
+        # The expression we can assign to
+        AstNode.__init__(self, line)
+        # Var node
+        self.var = var
+        # Was there a * operator
+        self.dereferenced = dereferenced
 
 
 class Var(AstNode):

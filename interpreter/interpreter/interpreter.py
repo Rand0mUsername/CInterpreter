@@ -1,5 +1,5 @@
 from .memory import *
-from .number import Number
+from .types import Number, Pointer, sizeof
 from ..lexical_analysis.token_type import NUM_TYPE_TOKENS
 from ..lexical_analysis.lexer import Lexer
 from ..lexical_analysis.token_type import *
@@ -9,11 +9,12 @@ from ..semantic_analysis.analyzer import SemanticAnalyzer
 from ..common.utils import get_functions, MessageColor
 from ..common.visitor import Visitor
 
+
 class Interpreter(Visitor):
 
     def __init__(self):
         """ Initializes the memory for this run """
-        # we can use memory[], new/del_scope, new/del_frame
+        # we can use declare, memory[] for values, get_address, new/del_scope, new/del_frame
         # the Memory class takes care of the underlying logic
         self.memory = Memory()
 
@@ -35,10 +36,12 @@ class Interpreter(Visitor):
             node.library_name
         ))
         for func in functions:
+            self.memory.declare('py_function', func.__name__)
             self.memory[func.__name__] = func
 
     def visit_FunctionDecl(self, node):
         """ Maps function name to FunctionDecl node """
+        self.memory.declare('c_function', node.func_name)
         self.memory[node.func_name] = node
 
     def visit_VarDecl(self, node):
@@ -46,12 +49,19 @@ class Interpreter(Visitor):
         self.memory.declare(node.type_node.value, node.var_node.value)
 
     # functions
-    # these visits return function return value (as a Number)
+    # these visits return function return value (as a Number/Pointer)
 
     def visit_FunctionCall(self, node):
         # Evaluate argument expressions
         args = [self.visit(arg) for arg in node.args]
-        # Additional fix argument until memory is properly implemented
+
+        """
+               FunctionDecl functions can access the memory since they are evaluated in the 
+               context of the current interpreter. However, python library functions that need
+               to work with memory have no way of accessing it. One way of doing this is having
+               a singleton memory, but that is considered bad practice, so for now we will send 
+               an additional memory argument to all functions that need it.
+        """
         if node.name == 'scanf':
             args.append(self.memory)
 
@@ -134,30 +144,85 @@ class Interpreter(Visitor):
         # return the last comma-delimited child
         return expr
 
-    def visit_Assignment(self, node):
-        var_name = node.left.value
-        if node.token.type == ADD_ASSIGN:
-            self.memory[var_name] += self.visit(node.right)
-        elif node.token.type == SUB_ASSIGN:
-            self.memory[var_name] -= self.visit(node.right)
-        elif node.token.type == MUL_ASSIGN:
-            self.memory[var_name] *= self.visit(node.right)
-        elif node.token.type == DIV_ASSIGN:
-            self.memory[var_name] /= self.visit(node.right)
+    def cast(self, type_name, num):
+        """ Cast a Number/Pointer to a new type"""
+        # extract raw numerical value
+        if isinstance(num, Pointer):
+            val = num.address
+        elif isinstance(num, Number):
+            val = num.value
+
+        # get the python type to cast to
+        type_py = types_py[type_name]
+
+        if type_py == Pointer:
+            # cast to pointer
+            return Pointer(type_name, int(val))
         else:
-            self.memory[var_name] = self.visit(node.right)
-        return self.memory[var_name]
+            # cast to number
+            return Number(type_name, type_py(val))
+
+    def get_lvalue_address(self, lvalue_node):
+        if isinstance(lvalue_node, Var):
+            var_name = lvalue_node.value
+            return self.memory.get_address(var_name)
+        else:  # UnOp(*, Ptr)
+            ptr_name = lvalue_node.expr.value
+            return self.memory[ptr_name].address
+
+    def visit_Assignment(self, node):
+        # node.left is lvalue - Var/UnOp(*, Var)
+        address = self.get_lvalue_address(node.left)
+
+        # get two operands
+        val_self = self.memory.get_at_address(address)
+        val_right = self.visit(node.right)
+
+        # combine the operands
+        if node.token.type == ADD_ASSIGN:
+            val_result = self.cast(val_self.type_name, val_self+val_right)
+        elif node.token.type == SUB_ASSIGN:
+            val_result = self.cast(val_self.type_name, val_self-val_right)
+        elif node.token.type == MUL_ASSIGN:
+            val_result = self.cast(val_self.type_name, val_self*val_right)
+        elif node.token.type == DIV_ASSIGN:
+            val_result = self.cast(val_self.type_name, val_self/val_right)
+        elif node.token.type == ASSIGN:
+            # this will also cast Number->Pointer if that's the assignment
+            val_result = self.cast(val_self.type_name, val_right)
+        else:
+            self.error("Unknown assignment op: {}".format(node.token.type))
+
+        # perform the assignment
+        self.memory.set_at_address(address, val_result)
+        return val_result
 
     def visit_UnOp(self, node):
         if node.prefix:
             if node.token.type == AMPERSAND:
-                return node.expr.value  # address = variable name
+                # reference - return variable address
+                # node.expr is a Var node
+                return Number('int', self.memory.get_address(node.expr.value))
+            elif node.token.type == ASTERISK:
+                # dereference - return variable at the pointed address
+                # node.expr is anything but a pointer type
+                res = self.visit(node.expr)
+                address = res.address if isinstance(res, Pointer) else res.value
+                return self.memory.get_at_address(address)
             elif node.token.type == INC_OP:
-                self.memory[node.expr.value] += Number('int', 1)
-                return self.memory[node.expr.value]
+                # node.expr is an LValue
+                address = self.get_lvalue_address(node.expr)
+                val_self = self.memory.get_at_address(address)
+                val_result = self.cast(val_self.type_name, val_self+Number('int', 1))
+                self.memory.set_at_address(address, val_result)
+                return val_result
             elif node.token.type == DEC_OP:
-                self.memory[node.expr.value] -= Number('int', 1)
-                return self.memory[node.expr.value]
+                # node.expr is an LValue
+                address = self.get_lvalue_address(node.expr)
+                val_self = self.memory.get_at_address(address)
+                val_result = self.cast(val_self.type_name, val_self-Number('int', 1))
+                self.memory.set_at_address(address, val_result)
+                return val_result
             elif node.token.type == MINUS:
                 return Number('int', -1) * self.visit(node.expr)
             elif node.token.type == PLUS:
@@ -166,21 +231,25 @@ class Interpreter(Visitor):
                 res = self.visit(node.expr)
                 return res.log_neg()
             elif node.token.type in NUM_TYPE_TOKENS:
-                # cast
                 res = self.visit(node.expr)
-                return Number(node.token.value, res.value)
+                return self.cast(node.token.value, res)
             else:
-                print(node.token, NUM_TYPE_TOKENS)
                 raise RuntimeError("Unknown prefix operator, earlier stages should catch this")
         else:
             if node.token.type == INC_OP:
-                var = self.memory[node.expr.value]
-                self.memory[node.expr.value] += Number('int', 1)
-                return var
+                # node.expr is an LValue
+                address = self.get_lvalue_address(node.expr)
+                val_self = self.memory.get_at_address(address)
+                val_result = self.cast(val_self.type_name, val_self+Number('int', 1))
+                self.memory.set_at_address(address, val_result)
+                return val_self
             elif node.token.type == DEC_OP:
-                var = self.memory[node.expr.value]
-                self.memory[node.expr.value] -= Number('int', 1)
-                return var
+                # node.expr is an LValue
+                address = self.get_lvalue_address(node.expr)
+                val_self = self.memory.get_at_address(address)
+                val_result = self.cast(val_self.type_name, val_self-Number('int', 1))
+                self.memory.set_at_address(address, val_result)
+                return val_self
             else:
                 raise RuntimeError("Unknown postfix operator, earlier stages should catch this")
 
@@ -189,7 +258,7 @@ class Interpreter(Visitor):
             return self.visit(node.left) + self.visit(node.right)
         elif node.token.type == MINUS:
             return self.visit(node.left) - self.visit(node.right)
-        elif node.token.type == MUL_OP:
+        elif node.token.type == ASTERISK:
             return self.visit(node.left) * self.visit(node.right)
         elif node.token.type == DIV_OP:
             return self.visit(node.left) / self.visit(node.right)
@@ -220,11 +289,11 @@ class Interpreter(Visitor):
 
     def visit_Num(self, node):
         if node.token.type == INTEGER_CONST:
-            return Number(type_name='int', value=node.value)
+            return Number('int', node.value)
         elif node.token.type == CHAR_CONST:
-            return Number(type_name='char', value=node.value)
+            return Number('char', node.value)
         elif node.token.type == REAL_CONST:
-            return Number(type_name='float', value=node.value)
+            return Number('float', node.value)
         else:
             raise RuntimeError("Unknown num const, earlier stages should catch this")
 
@@ -256,20 +325,11 @@ class Interpreter(Visitor):
 
     @staticmethod
     def run(program):
-        try:
-            lexer = Lexer(program)
-            parser = Parser(lexer)
-            tree = parser.parse()
-            SemanticAnalyzer.analyze(tree)
-            status = Interpreter().interpret(tree)
-        except Exception as message:
-            print("{}[{}] {} {}".format(
-                MessageColor.FAIL,
-                type(message).__name__,
-                message,
-                MessageColor.ENDC
-            ))
-            status = -1
+        lexer = Lexer(program)
+        parser = Parser(lexer)
+        tree = parser.parse()
+        SemanticAnalyzer.analyze(tree)
+        status = Interpreter().interpret(tree)
         print()
         print(MessageColor.OKBLUE + "Process terminated with status {}".format(status) + MessageColor.ENDC)
         return status

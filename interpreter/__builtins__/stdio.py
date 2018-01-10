@@ -3,14 +3,14 @@ Supports basic functions from stdio.h library.
 """
 
 from ..common.utils import definition
-from ..interpreter.number import Number
+from ..interpreter.types import Number
 
 import re
 
 @definition(return_type='int', arg_types=None)
 def printf(*args):
     fmt, *params = args
-    message = fmt % tuple([param.value for param in params])
+    message = fmt % tuple([param.value if isinstance(param, Number) else param.address for param in params])
     result = len(message)
     print(message, end='')
     return result
@@ -21,18 +21,22 @@ def scanf(*args):
         """ Takes a type specifier and returns the type name. """
         if flag[-1] == 'd':
             return 'int'
-        raise Exception('You are not allowed to use \'{}\' as a type'.format(flag))
+        elif flag[-1] == 'f':
+            return 'float'
+        elif flag[-1] == 'c':
+            return 'char'
+        raise Exception('\'{}\' not supported as a printf type specifier'.format(flag))
 
-    # unpack args
-    fmt, *params, memory = args
+    # unpack args: format string, addresses, memory
+    fmt, *addresses, memory = args
 
     # Extract type specifiers from the format string
-    fmt = re.sub(r'\s+', '', fmt)
-    specifiers = re.findall('%[^%]*[dfi]', fmt)
-    if len(specifiers) != len(params):
+    fmt = re.sub(r'\s+', '', fmt)  # Remove whitespace
+    specifiers = re.findall('%[^%]*[dfic]', fmt)
+    if len(specifiers) != len(addresses):
         raise Exception('Format of scanf function takes {} positional arguments but {} were given'.format(
             len(specifiers),
-            len(params)
+            len(addresses)
         ))
 
     # Scan the appropriate number of tokens
@@ -43,8 +47,8 @@ def scanf(*args):
         # Note: this can easily fail because it always reads the whole line
 
     # Cast tokens and perform assignments
-    for spec, param, val in zip(specifiers, params, tokens):
-        memory[param] = Number(get_type_name(spec), val)
+    for spec, address, val in zip(specifiers, addresses, tokens):
+        memory.set_at_address(address.value, Number(get_type_name(spec), val))
 
     return len(tokens)
 

@@ -7,8 +7,9 @@ STRING = 'STRING'
 
 # Arithmetic operators
 PLUS, MINUS = 'PLUS', 'MINUS'  # can be unary or binary
+ASTERISK = 'ASTERISK' # can be MUL_OP or DEREFERENCE
 
-MUL_OP, DIV_OP, MOD_OP = 'MUL_OP', 'DIV_OP', 'MOD_OP'
+DIV_OP, MOD_OP = 'DIV_OP', 'MOD_OP'
 INC_OP, DEC_OP = 'INC_OP', 'DEC_OP'
 
 # Bitwise operators

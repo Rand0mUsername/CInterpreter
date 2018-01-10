@@ -1,26 +1,27 @@
-import random
-from .number import Number
+
+from .types import Number, Pointer, sizeof, types_py
+
 
 class Scope(object):
-    """ A scope (block/function) with its values table """
+    """ A scope (block/function) with its address table """
     def __init__(self, scope_name, parent_scope=None):
         self.scope_name = scope_name
         # Parent_scope is None if this is a global scope or a function scope (top of the frame)
         self.parent_scope = parent_scope
-        self._values = dict()
+        self._addresses = dict()
 
     def __setitem__(self, key, value):
-        self._values[key] = value
+        self._addresses[key] = value
 
     def __getitem__(self, item):
-        return self._values[item]
+        return self._addresses[item]
 
     def __contains__(self, key):
-        return key in self._values
+        return key in self._addresses
 
     def __repr__(self):
         lines = [
-            '{}:{}'.format(key, val) for key, val in self._values.items()
+            '{}:{}'.format(key, val) for key, val in self._addresses.items()
         ]
         title = '{}\n'.format(self.scope_name)
         return title + '\n'.join(lines)
@@ -111,17 +112,48 @@ class Stack(object):
 
 
 class Memory(object):
-    """ A simulated program memory, contains one global scope and a stack with frames """
+    """
+        A simulated program memory, contains a raw_memory map that maps addresses to values and a stack with frames.
+        Every frame contains nested scopes and each scope maps symbol names to addresses. There is also a global scope.
+
+        Mapping name->address in scopes and address->val in raw_memory is a way to simulate C memory system in python.
+        In reality the raw_memory map would not be necessary since scope members would inherently have addresses.
+    """
+
+    # Addresses start from this number and always grow
+    STARTING_ADDRESS = int(1e6)
+
     def __init__(self):
         self.global_scope = Scope('global_scope')
         self.stack = Stack()
+        self.raw_memory = dict()
+        self.next_free_address = Memory.STARTING_ADDRESS
+
+    def malloc(self, block_sz):
+        """ Allocates a memory block """
+        ret_address = self.next_free_address
+        self.next_free_address += block_sz
+        return ret_address
 
     def declare(self, var_type, var_name):
+        """ Reserves space for a variable """
+
+        # find the current scope
         if self.stack.is_empty():
             scope = self.global_scope
         else:
             scope = self.stack.curr_frame.curr_scope
-        scope[var_name] = Number(var_type, random.randint(0, 2**32))
+
+        # name -> address
+        scope[var_name] = self.malloc(sizeof(var_type))
+
+        # address -> value
+        if var_type[-1] == '*':
+            self.raw_memory[scope[var_name]] = Pointer(var_type)
+        elif var_type in types_py:
+            self.raw_memory[scope[var_name]] = Number(var_type)
+        else:
+            self.raw_memory[scope[var_name]] = None
 
     def find_key(self, key):
         """ Returns the scope with the given key starting from the current scope """
@@ -137,13 +169,26 @@ class Memory(object):
         # Semantic analysis should ensure the key exists, this should never happen
         raise RuntimeError("Failed to find {} in the current scope".format(key))
 
-    def __setitem__(self, key, value):
-        scope = self.find_key(key)
-        scope[key] = value
-
-    def __getitem__(self, key):
+    def get_address(self, key):
         scope = self.find_key(key)
         return scope[key]
+
+    def set_at_address(self, address, value):
+        self.raw_memory[address] = value
+
+    def get_at_address(self, address):
+        if address not in self.raw_memory:
+            # Return a random number
+            self.raw_memory[address] = Number('int')
+        return self.raw_memory[address]
+
+    def __setitem__(self, key, value):
+        address = self.get_address(key)
+        self.set_at_address(address, value)
+
+    def __getitem__(self, key):
+        address = self.get_address(key)
+        return self.get_at_address(address)
 
     def new_frame(self, frame_name):
         self.stack.new_frame(frame_name)

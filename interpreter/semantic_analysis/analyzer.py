@@ -1,5 +1,5 @@
-from ..lexical_analysis.token_type import NUM_TYPE_TOKENS
-from ..syntax_analysis.parser import INTEGER_CONST, CHAR_CONST, REAL_CONST, AMPERSAND, OR_OP, XOR_OP
+from ..lexical_analysis.token_type import *
+from ..syntax_analysis.tree import *
 from .table import *
 from ..common.utils import get_functions, MessageColor
 from ..common.visitor import Visitor
@@ -16,11 +16,13 @@ class TypeWarning(UserWarning):
 class SemanticAnalyzer(Visitor):
 
     class CType(object):
-        # Maps type names to python types
-        types_py = {'char': int, 'int': int, 'float': float, 'double': float}
-
-        # Represents the type hierarchy
+        # Represents the base type hierarchy
         order = ('char', 'int', 'float', 'double')
+
+        # Checks if a CType is a pointer
+        @staticmethod
+        def is_pointer(c_type):
+            return c_type.type_name[-1] == '*'
 
         # The type as a string
         def __init__(self, type_name):
@@ -28,13 +30,21 @@ class SemanticAnalyzer(Visitor):
 
         def combine_with(self, other):
             """ Combines this CType with another one, return a 'broader' type """
-            left_order = SemanticAnalyzer.CType.order.index(self.type_name)
-            right_order = SemanticAnalyzer.CType.order.index(other.type_name)
-            return SemanticAnalyzer.CType(SemanticAnalyzer.CType.order[max(left_order, right_order)])
+            # If 1 pointer just return its type, that's pointer arithmetic
+            # 2 pointers / ptr+float etc. should be blocked before this
+            if SemanticAnalyzer.CType.is_pointer(self):
+                return SemanticAnalyzer.CType(self.type_name)
+            elif SemanticAnalyzer.CType.is_pointer(other):
+                return SemanticAnalyzer.CType(other.type_name)
+            else:
+                # Combine non-pointer types
+                left_order = SemanticAnalyzer.CType.order.index(self.type_name)
+                right_order = SemanticAnalyzer.CType.order.index(other.type_name)
+                return SemanticAnalyzer.CType(SemanticAnalyzer.CType.order[max(left_order, right_order)])
 
         def __eq__(self, other):
-            """ Checks for equality of python types """
-            return SemanticAnalyzer.CType.types_py[self.type_name] == SemanticAnalyzer.CType.types_py[other.type_name]
+            """ Checks for equality of types """
+            return self.type_name == other.type_name
 
         def __repr__(self):
             return '{}'.format(self.type_name)
@@ -160,7 +170,6 @@ class SemanticAnalyzer(Visitor):
         self.current_scope.insert(func_symbol)
 
         # Create a new scope for the function
-        # TODO: test void foo(int a) {int a;}
         procedure_scope = ScopedSymbolTable(
             scope_name=func_name,
             scope_level=self.current_scope.scope_level + 1,
@@ -276,17 +285,79 @@ class SemanticAnalyzer(Visitor):
                     node.line
                 ))
 
-        # Return a resulting type
+        # Disallow two pointers
+        if SemanticAnalyzer.CType.is_pointer(left_type) and SemanticAnalyzer.CType.is_pointer(right_type):
+            self.error("Two pointer types (<{}> and <{}>) at binary operator {} at line {}".format(
+                    left_type.type_name,
+                    right_type.type_name,
+                    node.token.type,
+                    node.line
+                ))
+
+        # If one pointer allow only PLUS and MINUS with int
+        if SemanticAnalyzer.CType.is_pointer(left_type):
+            if right_type.type_name != "int" or (node.token.type != PLUS and node.token.type != MINUS):
+                self.error("Unsupported pointer arithmetic with types (<{}> and <{}>) at bin op {} at line {}".format(
+                    left_type.type_name,
+                    right_type.type_name,
+                    node.token.type,
+                    node.line
+                ))
+        elif SemanticAnalyzer.CType.is_pointer(right_type):
+            if left_type.type_name != "int" or (node.token.type != PLUS and node.token.type != MINUS):
+                self.error("Unsupported pointer arithmetic with types (<{}> and <{}>) at bin op {} at line {}".format(
+                    left_type.type_name,
+                    right_type.type_name,
+                    node.token.type,
+                    node.line
+                ))
+
+        # Return the resulting type
         return left_type.combine_with(right_type)
 
     def visit_UnOp(self, node):
         """ op expr """
         # If the operator is the type this is a cast
-        # In both cases, return the resulting CType
         if node in NUM_TYPE_TOKENS:
             self.visit(node.expr)
-            return SemanticAnalyzer.CType(node.op.value)
-        return self.visit(node.expr)
+            return SemanticAnalyzer.CType(node.token.value)
+
+        # Visit the expression
+        expr_type = self.visit(node.expr)
+
+        # INC/DEC -> lvalue
+        if node.token.type in [INC_OP, DEC_OP] and not self.is_lvalue(node.expr):
+            self.error("{} not an lvalue, can't inc/dec at un op {} at line {}".format(
+                type(node.expr),
+                node.token.type,
+                node.line
+            ))
+
+        # ASTERISK -> pointer
+        if node.token.type == ASTERISK:
+            if SemanticAnalyzer.CType.is_pointer(expr_type):
+                return SemanticAnalyzer.CType(expr_type.type_name[:-1])
+            else:
+                self.error(
+                    "Can't dereference type ({}) at line {}".format(
+                        expr_type,
+                        node.line
+                    )
+                )
+
+        # pointer -> ASTERISK/INC/DEC
+        if SemanticAnalyzer.CType.is_pointer(expr_type) and node.token.type not in [INC_OP, DEC_OP, ASTERISK]:
+            self.error("Unsupported pointer arithmetic on type (<{}>) at un op {} at line {}".format(
+                expr_type.type_name,
+                node.token.type,
+                node.line
+            ))
+
+        # AMPERSAND casts to int
+        if node.token.type == AMPERSAND:
+            return SemanticAnalyzer.CType('int')
+        else:
+            return expr_type
 
     def visit_TerOp(self, node):
         """ condition ? texpression : fexpression """
@@ -302,17 +373,55 @@ class SemanticAnalyzer(Visitor):
             ))
         return true_exp
 
+    def is_lvalue(self, node):
+        if isinstance(node, Var):
+            return True
+        if isinstance(node, UnOp) and node.token.type == ASTERISK and isinstance(node.expr, Var):
+            return True
+
+        return False
+
     def visit_Assignment(self, node):
-        """ right = left """
-        # Visit both sides, don't allow assignment with different types
-        right = self.visit(node.right)
-        left = self.visit(node.left)
-        if left != right:
-            self.warning("Incompatible types when assigning to type <{}> from type <{}> at line {}".format(
-                left,
-                right,
+        """ left = right """
+        left = self.visit(node.left)  # primary
+        right = self.visit(node.right)  # whatever
+
+        # left is a primary expression but it needs to be an lvalue
+        if not self.is_lvalue(node.left):
+            self.error("Can't assign to a non-lvalue (<{}>) at ass op {} at line {}".format(
+                type(node.left),
+                node.token.type,
                 node.line
             ))
+
+        # it can be NumVar/PtrVar/*PtrVar
+
+        # Allow only +=int and -=int and =int and =matching_type if it is a pointer
+        if SemanticAnalyzer.CType.is_pointer(left):
+            if node.token.type == ADD_ASSIGN and right.type_name == 'int':
+                return right
+            if node.token.type == SUB_ASSIGN and right.type_name == 'int':
+                return right
+            if node.token.type == ASSIGN and SemanticAnalyzer.CType.is_pointer(right) and \
+                    right.type_name == left.type_name:
+                return right
+            if node.token.type == ASSIGN and right.type_name == 'int':
+                return right
+            self.error("Unsupported pointer assignment on types (<{}> <{}>) at ass op {} at line {}".format(
+                left.type_name,
+                right.type_name,
+                node.token.type,
+                node.line
+            ))
+        else:
+            # Otherwise, don't allow assignment with different types
+            if left != right:
+                self.warning("Incompatible types when assigning to type <{}> from type <{}> at line {}".format(
+                    left,
+                    right,
+                    node.line
+                ))
+
         # Return the resulting type
         return right
 

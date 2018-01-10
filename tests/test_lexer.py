@@ -15,7 +15,7 @@ class LexerTestCase(unittest.TestCase):
     def test_arithmetic_ops(self):
         lexer = Lexer('+ - / * %')
         self.check_list(
-            PLUS, MINUS, DIV_OP, MUL_OP, MOD_OP,
+            PLUS, MINUS, DIV_OP, ASTERISK, MOD_OP,
             lexer=lexer
         )
 
@@ -90,14 +90,19 @@ class LexerTestCase(unittest.TestCase):
             lexer=lexer
         )
 
-    #def test_neg_strings(self):
-    #    lexer = Lexer('''
-    #    "ovo je novi
-    #    string"
-    #    ''')
-    #    with self.assertRaises(LexicalError):
-    #        var = lexer.get_next_token
-    #        pass
+    def test_pointers(self):
+        lexer = Lexer('char* a;')
+        self.check_list(
+            CHAR, ASTERISK, ID, SEMICOLON,
+            lexer=lexer
+        )
+
+    def test_reference(self):
+        lexer = Lexer('char* a = &b;')
+        self.check_list(
+            CHAR, ASTERISK, ID, ASSIGN, AMPERSAND, ID, SEMICOLON,
+            lexer=lexer
+        )
     
 if __name__ == '__main__':
     unittest.main()
