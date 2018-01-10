@@ -55,6 +55,9 @@ class SemanticAnalyzer(Visitor):
     def __init__(self):
         """ Initializes the analyzer, there is no scope"""
         self.current_scope = None
+        # the number of nested loops/switches
+        self.in_nested_loop = 0
+        self.in_nested_switch = 0
 
     def error(self, message):
         raise SemanticError("SemanticError:" + message)
@@ -243,22 +246,38 @@ class SemanticAnalyzer(Visitor):
         """ for(setup condition increment) body"""
         self.visit(node.setup)
         self.visit(node.condition)
-        self.visit(node.increment)
+        self.in_nested_loop += 1
         self.visit(node.body)
+        self.in_nested_loop -= 1
+        self.visit(node.increment)
 
     def visit_WhileStmt(self, node):
         """ while(condition) body """
         self.visit(node.condition)
+        self.in_nested_loop += 1
         self.visit(node.body)
+        self.in_nested_loop -= 1
 
     def visit_DoWhileStmt(self, node):
         """ do body while (condition) """
-        self.visit(node.condition)
+        self.in_nested_loop += 1
         self.visit(node.body)
+        self.in_nested_loop -= 1
+        self.visit(node.condition)
 
     def visit_ReturnStmt(self, node):
         """ return expression """
         return self.visit(node.expression)
+
+    def visit_ContinueStmt(self, node):
+        """ continue """
+        if self.in_nested_loop == 0:
+            self.error("Continue statement not in loop at line {}".format(node.line))
+
+    def visit_BreakStmt(self, node):
+        """ break """
+        if self.in_nested_loop == 0 and self.in_nested_switch == 0:
+            self.error("Break statement not in loop/switch at line {}".format(node.line))
 
     def visit_Expression(self, node):
         # Visit all comma-separated subexpressions and return the CType of the last one

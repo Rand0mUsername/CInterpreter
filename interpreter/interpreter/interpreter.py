@@ -9,6 +9,10 @@ from ..semantic_analysis.analyzer import SemanticAnalyzer
 from ..common.utils import get_functions, MessageColor
 from ..common.visitor import Visitor
 
+# control flow flags
+CF_BREAK = "CF_BREAK"
+CF_CONTINUE = "CF_CONTINUE"
+
 
 class Interpreter(Visitor):
 
@@ -107,31 +111,63 @@ class Interpreter(Visitor):
             self.visit(child)
 
     # statements
-    # these visits don't return anything
+    # loops return nothing
+    # "ReturnStmt" returns function return value
+    # "ContinueStmt BreakStmt" return a cf flag
+    # other statements just propagate return values
+    # [cf flags are guaranteed to be return inside a loop scope]
 
     def visit_CompoundStmt(self, node):
         self.memory.new_scope()
         for child in node.children:
-            self.visit(child)
+            ret = self.visit(child)
+            # catch the cf flag and propagate up
+            # break will break the outer loop
+            # continue can be ignored by the loop but it will break compound statements
+            if type(ret) == str and ret in [CF_BREAK, CF_CONTINUE]:
+                self.memory.del_scope()
+                return ret
         self.memory.del_scope()
+        return None
 
     def visit_ReturnStmt(self, node):
         return self.visit(node.expression)
 
+    def visit_BreakStmt(self, node):
+        return CF_BREAK
+
+    def visit_ContinueStmt(self, node):
+        return CF_CONTINUE
+
     def visit_IfStmt(self, node):
         if self.visit(node.condition):
-            self.visit(node.true_body)
+            return self.visit(node.true_body)
         else:
-            self.visit(node.false_body)
+            return self.visit(node.false_body)
+
+    # loops
 
     def visit_WhileStmt(self, node):
         while self.visit(node.condition):
-            self.visit(node.body)
+            ret = self.visit(node.body)
+            if type(ret) == str and ret in [CF_BREAK]:
+                break
+
+
+    def visit_DoWhileStmt(self, node):
+        while True:
+            ret = self.visit(node.body)
+            if type(ret) == str and ret in [CF_BREAK]:
+                break
+            if not self.visit(node.condition):
+                break
 
     def visit_ForStmt(self, node):
         self.visit(node.setup)
         while self.visit(node.condition):
-            self.visit(node.body)
+            ret = self.visit(node.body)
+            if type(ret) == str and ret in [CF_BREAK]:
+                break
             self.visit(node.increment)
 
     # expressions

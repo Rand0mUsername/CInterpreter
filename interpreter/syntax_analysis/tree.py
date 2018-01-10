@@ -120,6 +120,15 @@ class IfStmt(AstNode):
         self.true_body = true_body
         self.false_body = false_body
 
+class ForStmt(AstNode):
+    def __init__(self, setup, condition, increment, body, line):
+        AstNode.__init__(self, line)
+        # Three expression AstNodes in for header
+        self.setup = setup
+        self.condition = condition
+        self.increment = increment
+        # The expression to execute
+        self.body = body
 
 class WhileStmt(AstNode):
     def __init__(self, condition, body, line):
@@ -131,7 +140,12 @@ class WhileStmt(AstNode):
 
 
 class DoWhileStmt(WhileStmt):
-    pass
+    def __init__(self, condition, body, line):
+        AstNode.__init__(self, line)
+        # the expression AstNode to execute
+        self.body = body
+        # the expression AstNode to check
+        self.condition = condition
 
 
 class ReturnStmt(AstNode):
@@ -147,18 +161,6 @@ class BreakStmt(AstNode):
 
 class ContinueStmt(AstNode):
     pass
-
-
-class ForStmt(AstNode):
-    def __init__(self, setup, condition, increment, body, line):
-        AstNode.__init__(self, line)
-        # Three expression AstNodes in for header
-        self.setup = setup
-        self.condition = condition
-        self.increment = increment
-        # The expression to execute
-        self.body = body
-
 
 class CompoundStmt(AstNode):
     def __init__(self, children, line):

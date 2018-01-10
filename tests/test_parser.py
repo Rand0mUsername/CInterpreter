@@ -160,7 +160,7 @@ class ParserTestCase(unittest.TestCase):
 
     def test_more_pointers(self):
         parser = self.make_parser("""
-                    int main(){
+                    int main() {
                         int* a;
                         int b;
                         *a = b;
@@ -172,6 +172,51 @@ class ParserTestCase(unittest.TestCase):
                     }
                 """)
         parser.parse()
+
+    def test_control_flow(self):
+        parser = self.make_parser("""
+                    int main() {
+                        int i, j = 0;
+                        for(i=0; i<5; i++) {
+                            j += i;
+                            if (j == 6) {
+                              break;
+                            }
+                        }
+                        i = 0;
+                        while(i < 10) {
+                            ++i;
+                            if (i == 5) {
+                                 continue;
+                            }
+                            j += i;
+                        }
+                    }
+                """)
+        parser.parse()
+
+    def test_nested_control_flow(self):
+        parser = self.make_parser("""
+                    int main() {
+                        int i, j = 0;
+                        for(i=0; i<5; i++) {
+                            int k = 0;
+                            while (k < 5) {
+                                j++;
+                                k++;
+                                if (k == i) {
+                                    break;
+                                }
+                            }
+                            j += i;
+                            if (j == 6) {
+                              break;
+                            }
+                        }
+                    }
+                """)
+        parser.parse()
+
 
 if __name__ == '__main__':
     unittest.main()

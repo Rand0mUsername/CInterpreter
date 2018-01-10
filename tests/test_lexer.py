@@ -103,6 +103,13 @@ class LexerTestCase(unittest.TestCase):
             CHAR, ASTERISK, ID, ASSIGN, AMPERSAND, ID, SEMICOLON,
             lexer=lexer
         )
+
+    def test_control_flow(self):
+        lexer = Lexer('break continue return')
+        self.check_list(
+            BREAK, CONTINUE, RETURN,
+            lexer=lexer
+        )
     
 if __name__ == '__main__':
     unittest.main()

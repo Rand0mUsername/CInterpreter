@@ -165,6 +165,69 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                 }
             """)
 
+    def test_control_flow(self):
+        self.analyze("""
+                    int main() {
+                        int i, j = 0;
+                        for(i=0; i<5; i++) {
+                            j += i;
+                            if (j == 6) {
+                              break;
+                            }
+                        }
+                        i = 0;
+                        while(i < 10) {
+                            ++i;
+                            if (i == 5) {
+                                 continue;
+                            }
+                            j += i;
+                        }
+                    }
+                """)
+
+    def test_nested_control_flow(self):
+        self.analyze("""
+                    int main() {
+                        int i, j = 0;
+                        for(i=0; i<5; i++) {
+                            int k = 0;
+                            while (k < 5) {
+                                j++;
+                                k++;
+                                if (k == i) {
+                                    break;
+                                }
+                            }
+                            j += i;
+                            if (j == 6) {
+                              break;
+                            }
+                        }
+                    }
+                """)
+
+    def invalid_control_flow(self):
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                        int foo() {
+                            int i = 3;
+                            continue;
+                            return i;
+                        }
+                        
+                        int main() {
+                            int i, j = 0;
+                            for(i=0; i<5; i++) {
+                                int k = 0;
+                                j += i;
+                                if (j == 6) {
+                                  break;
+                                }
+                            }
+                            foo();
+                        }
+                    """)
 
 
 if __name__ == '__main__':

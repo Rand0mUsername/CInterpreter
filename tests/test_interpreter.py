@@ -18,7 +18,7 @@ class InterpreterTestCase(unittest.TestCase):
         """)
 
     def test_files(self):
-        to_test = None
+        to_test = 'ex6_control_flow.c'
         for filename in os.listdir('./testdata'):
             # temporary fix to test only one files
             if to_test is not None and filename != to_test:
