@@ -212,7 +212,6 @@ class Parser(object):
         statement                   : iteration_statement
                                     | selection_statement
                                     | jump_statement
-                                    | switch_statement
                                     | compound_statement
                                     | expression_statement
         """
@@ -222,8 +221,6 @@ class Parser(object):
             return self.selection_statement()
         elif self.check_jump_statement():
             return self.jump_statement()
-        elif self.check_switch_statement():
-            return self.switch_statement()
         elif self.check_compound_statement():
             return self.compound_statement()
         return self.expression_statement()
@@ -284,14 +281,32 @@ class Parser(object):
             )
 
     @restorable
-    def check_switch_statement(self):
-        return self.current_token.type == SWITCH
+    def check_selection_statement(self):
+        return self.current_token.type in (IF, SWITCH)
 
-    def switch_statement(self):
+    def selection_statement(self):
         """
-         switch_statement            : SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
+        selection_statement         : IF LPAREN expression RPAREN statement (ELSE statement)?
+                                    | SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
+
         """
-        if self.current_token.type == SWITCH:
+        if self.current_token.type == IF:
+            self.eat(IF)
+            self.eat(LPAREN)
+            condition = self.expression()
+            self.eat(RPAREN)
+            true_body = self.statement()
+            false_body = self.empty()
+            if self.current_token.type == ELSE:
+                self.eat(ELSE)
+                false_body = self.statement()
+            return IfStmt(
+                condition=condition,
+                true_body=true_body,
+                false_body=false_body,
+                line=self.lexer.line
+            )
+        elif self.current_token.type == SWITCH:
             self.eat(SWITCH)
             self.eat(LPAREN)
             expr = self.expression()
@@ -325,31 +340,6 @@ class Parser(object):
             self.eat(DEFAULT)
             self.eat(COLON)
             return SwitchDefaultLabel(
-                line=self.lexer.line
-            )
-
-    @restorable
-    def check_selection_statement(self):
-        return self.current_token.type == IF
-
-    def selection_statement(self):
-        """
-        selection_statement         : IF LPAREN expression RPAREN statement (ELSE statement)?
-        """
-        if self.current_token.type == IF:
-            self.eat(IF)
-            self.eat(LPAREN)
-            condition = self.expression()
-            self.eat(RPAREN)
-            true_body = self.statement()
-            false_body = self.empty()
-            if self.current_token.type == ELSE:
-                self.eat(ELSE)
-                false_body = self.statement()
-            return IfStmt(
-                condition=condition,
-                true_body=true_body,
-                false_body=false_body,
                 line=self.lexer.line
             )
 

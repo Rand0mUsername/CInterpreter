@@ -29,8 +29,6 @@
 
                 compound_statement          : LBRACKET (declaration_list | statement)* RBRACKET
 
-                switch_statement            : SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
-
                 switch_case                 : CASE expression COLON
                                             | DEFAULT COLON
 
@@ -39,6 +37,7 @@
                                             | FOR LPAREN expression_statement expression_statement (expression)? RPAREN statement
 
                 selection_statement         : IF LPAREN expression RPAREN statement (ELSE statement)?
+                                            | SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
 
                 jump_statement              : RETURN expression? SEMICOLON
                                             | BREAK SEMICOLON
