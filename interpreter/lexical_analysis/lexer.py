@@ -134,6 +134,9 @@ class Lexer(object):
         self.advance()
         ch = self.current_char
         self.advance()
+        if ch == '\\' and self.current_char == 'n':
+            ch = '\n'
+            self.advance()
         if self.current_char != '\'':
             self.error("Unterminated char literal at line {}".format(self.line))
         self.advance()
@@ -142,7 +145,7 @@ class Lexer(object):
     def _id(self):
         """ Handles identifiers and reserved keywords. """
         result = ''
-        while self.current_char is not None and self.current_char.isalnum():
+        while self.current_char is not None and (self.current_char.isalnum() or self.current_char == '_'):
             result += self.current_char
             self.advance()
 

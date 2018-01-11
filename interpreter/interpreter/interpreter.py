@@ -5,7 +5,7 @@ from ..lexical_analysis.token_type import *
 from ..syntax_analysis.parser import Parser
 from ..syntax_analysis.tree import *
 from ..semantic_analysis.analyzer import SemanticAnalyzer
-from ..common.utils import get_functions, MessageColor
+from ..common.utils import get_functions, get_constants, MessageColor
 from ..common.visitor import Visitor
 from ..common.ctype import CType
 
@@ -38,12 +38,17 @@ class Interpreter(Visitor):
 
     def visit_IncludeLibrary(self, node):
         """ Maps function name to the actual python function """
-        functions = get_functions('interpreter.__builtins__.{}'.format(
+        module_name = 'interpreter.__builtins__.{}'.format(
             node.library_name
-        ))
+        )
+        functions = get_functions(module_name)
         for func in functions:
             self.memory.declare_fun(func.__name__)
             self.memory[func.__name__] = func
+
+        consts = get_constants(module_name)
+        for name, value in consts:
+            self.memory.declare_constant(name, value)
 
     def visit_FunctionDecl(self, node):
         """ Maps function name to FunctionDecl node """
@@ -218,7 +223,7 @@ class Interpreter(Visitor):
     def get_lvalue_address(self, lvalue_node):
         if isinstance(lvalue_node, Var):
             var_name = lvalue_node.value
-            return self.memory.get_address(var_name)
+            return self.memory.get_value_in_scope(var_name)
         else:  # UnOp(*, Ptr)
             ptr_name = lvalue_node.expr.value
             return self.memory[ptr_name].value
@@ -258,7 +263,7 @@ class Interpreter(Visitor):
             elif node.token.type == AMPERSAND:
                 # reference - return variable address
                 # node.expr is a Var node
-                return Number(CType(type_spec='int'), self.memory.get_address(node.expr.value))
+                return Number(CType(type_spec='int'), self.memory.get_value_in_scope(node.expr.value))
             elif node.token.type == ASTERISK:
                 # dereference - return variable at the pointed address
                 # node.expr is anything but a pointer type

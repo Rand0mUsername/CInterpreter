@@ -27,6 +27,22 @@ class VarSymbol(Symbol):
 
     __repr__ = __str__
 
+
+class ConstSymbol(Symbol):
+    """ A symbol representing a constant """
+    def __init__(self, name, c_type):
+        super(ConstSymbol, self).__init__(name, c_type)
+
+    def __str__(self):
+        return "<{class_name}(name='{name}', type='{type}')>".format(
+            class_name=self.__class__.__name__,
+            name=self.name,
+            type=self.c_type,
+        )
+
+    __repr__ = __str__
+
+
 class FunctionSymbol(Symbol):
     """ A symbol representing a function """
     def __init__(self, name, c_type, params=None):

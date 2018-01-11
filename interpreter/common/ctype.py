@@ -122,7 +122,7 @@ class CType:
                     raise RuntimeError("Multiple sign specifiers")
                 sign_spec = spec
             else:
-                raise RuntimeError("Unrecognized spec {} ".format(spec))
+                raise RuntimeError("Unrecognized spec '{}' ".format(spec))
             idx += 1
 
         # Check one case to allow defaults

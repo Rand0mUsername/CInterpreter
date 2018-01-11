@@ -1,5 +1,5 @@
 """
-Supports basic functions from stdlib.h library.
+Supports basic functions and constants from stdlib.h library.
 """
 
 import random

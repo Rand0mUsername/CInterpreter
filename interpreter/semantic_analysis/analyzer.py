@@ -1,7 +1,7 @@
 from ..lexical_analysis.token_type import *
 from ..syntax_analysis.tree import *
 from .table import *
-from ..common.utils import get_functions, MessageColor
+from ..common.utils import get_functions, get_constants, MessageColor
 from ..common.visitor import Visitor
 from ..common.ctype import CType
 
@@ -90,10 +90,11 @@ class SemanticAnalyzer(Visitor):
     def visit_IncludeLibrary(self, node):
         """ #include <library_name.h> """
 
-        functions = get_functions('interpreter.__builtins__.{}'.format(
+        module_name = 'interpreter.__builtins__.{}'.format(
             node.library_name
-        ))
+        )
 
+        functions = get_functions(module_name)
         for func in functions:
             # Get function return type
             try:
@@ -124,6 +125,14 @@ class SemanticAnalyzer(Visitor):
                     func_symbol.params.append(var_symbol)
 
             self.current_scope.insert(func_symbol)
+
+        # now load constants
+
+        consts = get_constants(module_name)
+        for name, value in consts:
+            c_type = CType.from_string('int')  # TODO: for now only int consts
+            const_symbol = ConstSymbol(name, c_type)
+            self.current_scope.insert(const_symbol)
 
     def visit_FunctionDecl(self, node):
         """ type_node  func_name ( params ) body """

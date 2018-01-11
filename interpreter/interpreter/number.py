@@ -1,6 +1,5 @@
 from ..common.ctype import CType
 
-
 class Number(object):
     """ A number class used by the interpreter """
 
@@ -165,3 +164,7 @@ class Number(object):
 
     def __str__(self):
         return self.__repr__()
+
+
+class ConstNumber(Number):
+    pass

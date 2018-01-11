@@ -1,28 +1,28 @@
 
-from .number import Number
+from .number import Number, ConstNumber
 from ..common.ctype import CType
 
 
 class Scope(object):
-    """ A scope (block/function) with its address table """
+    """ A scope (block/function) with its address/const table """
     def __init__(self, scope_name, parent_scope=None):
         self.scope_name = scope_name
         # Parent_scope is None if this is a global scope or a function scope (top of the frame)
         self.parent_scope = parent_scope
-        self._addresses = dict()
+        self._values = dict()  # addresses/consts
 
     def __setitem__(self, key, value):
-        self._addresses[key] = value
+        self._values[key] = value
 
     def __getitem__(self, item):
-        return self._addresses[item]
+        return self._values[item]
 
     def __contains__(self, key):
-        return key in self._addresses
+        return key in self._values
 
     def __repr__(self):
         lines = [
-            '{}:{}'.format(key, val) for key, val in self._addresses.items()
+            '{}:{}'.format(key, val) for key, val in self._values.items()
         ]
         title = '{}\n'.format(self.scope_name)
         return title + '\n'.join(lines)
@@ -115,8 +115,8 @@ class Stack(object):
 class Memory(object):
     """
         A simulated program memory, contains a raw_memory map that maps addresses to values and a stack with frames.
-        Every frame contains nested scopes and each scope maps symbol names to addresses. There is also a global scope
-        and a list of dynamically allocated addresses.
+        Every frame contains nested scopes and each scope maps symbol names to addresses/consts.
+        There is also a global scope and a list of dynamically allocated addresses.
 
         Mapping name->address in scopes and address->val in raw_memory is a way to simulate C memory system in python.
         In reality the raw_memory map would not be necessary since scope members would inherently have addresses.
@@ -134,6 +134,10 @@ class Memory(object):
         self.next_free_address = Memory.STARTING_ADDRESS
         self.dyn_alloc_addr = set()
 
+    def declare_constant(self, name, value):
+        scope = self._get_curr_scope()
+        scope[name] = ConstNumber(CType.from_string('int'), value)
+
     def allocate(self, block_sz):
         """ Allocates a memory block """
         ret_address = self.next_free_address
@@ -150,7 +154,7 @@ class Memory(object):
         # find the current scope
         scope = self._get_curr_scope()
 
-        # name -> address
+        # name -> address (just int) / const (Number!, no address)
         scope[name] = self.allocate(size_bytes)  # random fixed fun size
 
         # address -> random value
@@ -179,7 +183,7 @@ class Memory(object):
         # Semantic analysis should ensure the key exists, this should never happen
         raise RuntimeError("Failed to find {} in the current scope".format(key))
 
-    def get_address(self, key):
+    def get_value_in_scope(self, key):
         scope = self.find_key(key)
         return scope[key]
 
@@ -195,12 +199,22 @@ class Memory(object):
         return self.raw_memory[address]
 
     def __setitem__(self, key, value):
-        address = self.get_address(key)
-        self.set_at_address(address, value)
+        val_in_scope = self.get_value_in_scope(key)
+        if isinstance(val_in_scope, ConstNumber):
+            raise RuntimeError("Can't reassign const value for const {} ".format(key))
+        elif isinstance(val_in_scope, int):
+            self.set_at_address(val_in_scope, value)
+        else:
+            raise RuntimeError("Invalid type for val_in_scope:  (<{}>) ".type(val_in_scope))
 
     def __getitem__(self, key):
-        address = self.get_address(key)
-        return self.get_at_address(address)
+        val_in_scope = self.get_value_in_scope(key)
+        if isinstance(val_in_scope, ConstNumber):
+            return val_in_scope
+        elif isinstance(val_in_scope, int):
+            return self.get_at_address(val_in_scope)
+        else:
+            raise RuntimeError("Invalid type for val_in_scope:  (<{}>) ".type(val_in_scope))
 
     def new_frame(self, frame_name):
         self.stack.new_frame(frame_name)

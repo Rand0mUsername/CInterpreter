@@ -1,5 +1,5 @@
 """
-Supports basic functions from stdio.h library.
+Supports basic functions and constants from stdio.h library.
 """
 
 from ..common.utils import definition
@@ -8,6 +8,7 @@ from ..common.ctype import CType
 
 
 import re
+import sys
 
 @definition(return_type='int', arg_types=None)
 def printf(*args):
@@ -56,7 +57,17 @@ def scanf(*args):
 
 @definition(return_type='char', arg_types=[])
 def getchar():
-    import sys
     return ord(sys.stdin.read(1))
+
+
+@definition(return_type='char', arg_types=['char'])
+def putchar(ch):
+    try:
+        sys.stdout.write(chr(ch))
+        return ch
+    except UnicodeEncodeError:
+        return 0
+
+
 
 

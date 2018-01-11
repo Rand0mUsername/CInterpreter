@@ -1,10 +1,13 @@
 from functools import wraps
 import pickle
 import importlib
+import re
+
 
 def import_module(libname):
     """ Imports the module with a given name """
     return importlib.import_module(libname)
+
 
 def get_functions(module):
     """ Returns all functions defined in some module """
@@ -14,6 +17,15 @@ def get_functions(module):
         func = getattr(lib, func_name)
         if callable(func) and not func_name.startswith('__') and func.__module__.endswith(module):
             yield func
+
+
+def get_constants(module):
+    """ Returns all constants defined in some module """
+    lib = import_module(module)
+    for name in dir(lib):
+        const = getattr(lib, name)
+        if not callable(const) and re.match("^[A-Z][_A-Z]*$", name):
+            yield (name, const)
 
 def restorable(fn):
     """ Decorator that resets object state after calling a function """
