@@ -5,11 +5,11 @@
 
                 include_library             : HASH ID<'include'> LESS_THAN ID DOT ID<'h'> GREATER_THAN
 
-                function_declaration        : type_spec ID LPAREN parameters RPAREN compound_statement
+                function_declaration        : decl_type_spec ID LPAREN parameters RPAREN compound_statement
 
                 function_body               : LBRACKET (declaration | statement)* RBRACKET
 
-                parameters                  : type_spec variable (COMMA type_spec variable)*
+                parameters                  : decl_type_spec variable (COMMA decl_type_spec variable)*
 
                 declaration                 : type_spec init_declarator_list SEMICOLON
 
@@ -74,7 +74,7 @@
 
                 multiplicative_expression   : cast_expression ((ASTERISK | DIV_OP | MOD_OP) cast_expression)*
 
-                cast_expression             : LPAREN type_spec RPAREN cast_expression
+                cast_expression             : LPAREN decl_type_spec RPAREN cast_expression
                                             | unary_expression
 
                 unary_expression            : INC_OP primary_expression
@@ -100,7 +100,16 @@
                 constant                    : INTEGER_CONST
                                             | REAL_CONST
 
-                type_spec                   : TYPE ASTERISK?
+                decl_type_spec              : type_spec+ ASTERISK?
+
+                type_spec                   : SHORT
+                                            | LONG
+                                            | SIGNED
+                                            | UNSIGNED
+                                            | CHAR
+                                            | INT
+                                            | FLOAT
+                                            | DOUBLE
 
                 variable                    : ID
 

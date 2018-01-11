@@ -6,19 +6,8 @@ class InterpreterTestCase(unittest.TestCase):
     def interpret(self, text):
         return Interpreter.run(text)
 
-    def test_helloworld(self):
-        self.interpret("""
-        #include <stdio.h>
-
-        int main(){
-            printf("Hello World!");
-            return 0;
-        }
-
-        """)
-
     def test_files(self):
-        to_test = 'ex6_control_flow.c'
+        to_test = None
         for filename in os.listdir('./testdata'):
             # temporary fix to test only one files
             if to_test is not None and filename != to_test:

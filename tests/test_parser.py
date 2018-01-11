@@ -218,6 +218,36 @@ class ParserTestCase(unittest.TestCase):
                 """)
         parser.parse()
 
+    def test_types(self):
+        parser = self.make_parser("""
+                    int main() {
+                        unsigned short int i = 4;
+                        long double f = 5;
+                        int long long x = 9;
+                    }
+                """)
+        parser.parse()
+
+    def test_types_fail(self):
+        with self.assertRaises(SyntaxError):
+            parser = self.make_parser("""
+                        int main() {
+                        unsigned short int i = 4;
+                        long double f = 5;
+                        short unsigned int long long x = 9;
+                    }
+                    """)
+            parser.parse()
+
+    def test_types_fail_2(self):
+        with self.assertRaises(SyntaxError):
+            parser = self.make_parser("""
+                        int main() {
+                        unsigned i = 4;
+                    }
+                    """)
+            parser.parse()
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,6 +3,7 @@
 from ..lexical_analysis.token_type import *
 from .tree import *
 from ..common.utils import restorable
+from ..common.ctype import CType
 
 
 class SyntaxError(Exception):
@@ -47,11 +48,11 @@ class Parser(object):
 
     def declarations(self):
         """
-        declarations                : (include_library | function_declaration | declaration_list)*
+        declarations                : (include_library | function_declaration | declaration)*
         """
         declarations = []
 
-        while self.current_token.type in [CHAR, FLOAT, DOUBLE, INT, HASH]:
+        while self.current_token.type in TYPE_SPECIFIERS or self.current_token.type == HASH:
             if self.current_token.type == HASH:
                 declarations.append(self.include_library())
             elif self.check_function():
@@ -92,15 +93,15 @@ class Parser(object):
 
     @restorable
     def check_function(self):
-        self.eat(self.current_token.type)
+        self.decl_type_spec()
         self.eat(ID)
         return self.current_token.type == LPAREN
 
     def function_declaration(self):
         """
-        function_declaration        : type_spec ID LPAREN parameters RPAREN compound_statement
+        function_declaration        : decl_type_spec ID LPAREN parameters RPAREN compound_statement
         """
-        type_node = self.type_spec()
+        type_node = self.decl_type_spec()
         func_name = self.current_token.value
         self.eat(ID)
         self.eat(LPAREN)
@@ -116,12 +117,12 @@ class Parser(object):
 
     def function_body(self):
         """
-        function_body               : LBRACKET (declaration_list | statement)* RBRACKET
+        function_body               : LBRACKET (declaration | statement)* RBRACKET
         """
         result = []
         self.eat(LBRACKET)
         while self.current_token.type != RBRACKET:
-            if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
+            if self.current_token.type in TYPE_SPECIFIERS:
                 result.extend(self.declaration())
             else:
                 result.append(self.statement())
@@ -133,19 +134,19 @@ class Parser(object):
 
     def parameters(self):
         """
-        parameters                  : type_spec variable (COMMA type_spec variable)*
+        parameters                  : decl_type_spec variable (COMMA type_spec variable)*
         """
         nodes = []
         if self.current_token.type != RPAREN:
             nodes = [Param(
-                type_node=self.type_spec(),
+                type_node=self.decl_type_spec(),
                 var_node=self.variable(),
                 line=self.lexer.line
             )]
             while self.current_token.type == COMMA:
                 self.eat(COMMA)
                 nodes.append(Param(
-                    type_node=self.type_spec(),
+                    type_node=self.decl_type_spec(),
                     var_node=self.variable(),
                     line=self.lexer.line
                 ))
@@ -153,10 +154,10 @@ class Parser(object):
 
     def declaration(self):
         """
-        declaration                 : type_spec init_declarator_list SEMICOLON
+        declaration                 : decl_type_spec init_declarator_list SEMICOLON
         """
         result = list()
-        type_node = self.type_spec()
+        type_node = self.decl_type_spec()
         for node in self.init_declarator_list():
             if isinstance(node, Var):
                 result.append(VarDecl(
@@ -222,12 +223,12 @@ class Parser(object):
 
     def compound_statement(self):
         """
-        compound_statement          : LBRACKET (declaration_list | statement)* RBRACKET
+        compound_statement          : LBRACKET (declaration | statement)* RBRACKET
         """
         result = []
         self.eat(LBRACKET)
         while self.current_token.type != RBRACKET:
-            if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
+            if self.current_token.type in TYPE_SPECIFIERS:
                 result.extend(self.declaration())
             else:
                 result.append(self.statement())
@@ -278,7 +279,7 @@ class Parser(object):
     def selection_statement(self):
         """
         selection_statement         : IF LPAREN expression RPAREN statement (ELSE statement)?
-                                    | SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
+                                    | SWITCH LPAREN expression RPAREN LBRACKET (declaration | statement | switch_case)* RBRACKET
 
         """
         if self.current_token.type == IF:
@@ -305,7 +306,7 @@ class Parser(object):
             self.eat(LBRACKET)
             result = []
             while self.current_token.type != RBRACKET:
-                if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
+                if self.current_token.type in TYPE_SPECIFIERS:
                     result.extend(self.declaration())
                 elif self.current_token.type in (CASE, DEFAULT):
                     result.append(self.switch_case_label())
@@ -624,22 +625,24 @@ class Parser(object):
     def check_cast_expression(self):
         if self.current_token.type == LPAREN:
             self.eat(LPAREN)
-            if self.current_token.type in [CHAR, DOUBLE, INT, FLOAT]:
+            if self.current_token.type not in TYPE_SPECIFIERS:
+                return False
+            while self.current_token.type in TYPE_SPECIFIERS:
                 self.eat(self.current_token.type)
-                return self.current_token.type == RPAREN
+            return self.current_token.type == RPAREN
         return False
 
     def cast_expression(self):
         """
-        multiplicative_expression   : LPAREN type_spec RPAREN cast_expression
+        multiplicative_expression   : LPAREN decl_type_spec RPAREN cast_expression
                                     | unary_expression
         """
         if self.check_cast_expression():
             self.eat(LPAREN)
-            type_node = self.type_spec()
+            type_node = self.decl_type_spec()
             self.eat(RPAREN)
             return UnOp(
-                token=type_node.token,
+                token=type_node,  # TODO: not a token really, refactor
                 expr=self.cast_expression(),
                 line=self.lexer.line
             )
@@ -782,26 +785,29 @@ class Parser(object):
         else:
             self.error("Invalid constant type: {}".format(token.type))
 
-    def type_spec(self):
+    def decl_type_spec(self):
         """
-        type_spec                   : TYPE
+        decl_type_spec              : type_spec+ ASTERISK?
         """
-        if not self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
-            self.error("Invalid type specifier: {}".format(self.current_token.type))
-        token = self.current_token
-        self.eat(self.current_token.type)
+        # Build a string
+        specifiers = []
+        while self.current_token.type in TYPE_SPECIFIERS:
+            specifiers.append(self.current_token.value)
+            self.eat(self.current_token.type)
 
-        # Check if it is a pointer type
-        # TODO: int* a, b, c creates three pointers and int *a, *b is not allowed, FIX
+        # Collect a potential pointer flag
         if self.current_token.type == ASTERISK:
-            pointer = True
+            specifiers.append('*')
             self.eat(ASTERISK)
-        else:
-            pointer = False
+
+        try:
+            c_type = CType.from_string(' '.join(specifiers))
+        except RuntimeError as e:
+            self.error(str(e) + " at line {}".format(self.lexer.line))
+
         return Type(
-            token=token,
             line=self.lexer.line,
-            pointer=pointer
+            c_type=c_type
         )
 
     def variable(self):

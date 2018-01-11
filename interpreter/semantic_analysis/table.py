@@ -6,47 +6,31 @@ Symbols and tables used for semantic analysis
 
 
 class Symbol(object):
-    def __init__(self, name, type_symbol=None):
+    def __init__(self, name, c_type=None):
         # string name of the symbol
         self.name = name
-        # a symbol holding the type of this symbol
-        self.type_symbol = type_symbol
+        # a CType
+        self.c_type = c_type
 
 
 class VarSymbol(Symbol):
     """ A symbol representing a variable """
-    def __init__(self, name, type_symbol):
-        super(VarSymbol, self).__init__(name, type_symbol)
+    def __init__(self, name, c_type):
+        super(VarSymbol, self).__init__(name, c_type)
 
     def __str__(self):
         return "<{class_name}(name='{name}', type='{type}')>".format(
             class_name=self.__class__.__name__,
             name=self.name,
-            type=self.type,
+            type=self.c_type,
         )
 
     __repr__ = __str__
 
-
-class BuiltinTypeSymbol(Symbol):
-    """ A symbol representing a built in type (char, int, float, double) """
-    def __init__(self, name):
-        super(BuiltinTypeSymbol, self).__init__(name)
-
-    def __str__(self):
-        return self.name
-
-    def __repr__(self):
-        return "<{class_name}(name='{name}')>".format(
-            class_name=self.__class__.__name__,
-            name=self.name,
-        )
-
-
 class FunctionSymbol(Symbol):
     """ A symbol representing a function """
-    def __init__(self, name, type_symbol, params=None):
-        super(FunctionSymbol, self).__init__(name, type_symbol)
+    def __init__(self, name, c_type, params=None):
+        super(FunctionSymbol, self).__init__(name, c_type)
         # a list of formal parameter Symbols
         self.params = params if params is not None else []
 
@@ -55,7 +39,7 @@ class FunctionSymbol(Symbol):
             class_name=self.__class__.__name__,
             name=self.name,
             params=self.params,
-            type=self.type
+            type=self.c_type
         )
 
     __repr__ = __str__
@@ -68,17 +52,6 @@ class ScopedSymbolTable(object):
         self.scope_name = scope_name
         self.scope_level = scope_level
         self.enclosing_scope = enclosing_scope
-
-    def init_builtins(self):
-        """ Inserts built in types in the symbol table. """
-        self.insert(BuiltinTypeSymbol('char'))
-        self.insert(BuiltinTypeSymbol('int'))
-        self.insert(BuiltinTypeSymbol('float'))
-        self.insert(BuiltinTypeSymbol('double'))
-        self.insert(BuiltinTypeSymbol('char*'))
-        self.insert(BuiltinTypeSymbol('int*'))
-        self.insert(BuiltinTypeSymbol('float*'))
-        self.insert(BuiltinTypeSymbol('double*'))
 
     def __str__(self):
         h1 = 'SCOPE (SCOPED SYMBOL TABLE)'

@@ -3,6 +3,7 @@ from ..syntax_analysis.tree import *
 from .table import *
 from ..common.utils import get_functions, MessageColor
 from ..common.visitor import Visitor
+from ..common.ctype import CType
 
 
 class SemanticError(Exception):
@@ -14,43 +15,6 @@ class TypeWarning(UserWarning):
 
 
 class SemanticAnalyzer(Visitor):
-
-    class CType(object):
-        # Represents the base type hierarchy
-        order = ('char', 'int', 'float', 'double')
-
-        # Checks if a CType is a pointer
-        @staticmethod
-        def is_pointer(c_type):
-            return c_type.type_name[-1] == '*'
-
-        # The type as a string
-        def __init__(self, type_name):
-            self.type_name = type_name
-
-        def combine_with(self, other):
-            """ Combines this CType with another one, return a 'broader' type """
-            # If 1 pointer just return its type, that's pointer arithmetic
-            # 2 pointers / ptr+float etc. should be blocked before this
-            if SemanticAnalyzer.CType.is_pointer(self):
-                return SemanticAnalyzer.CType(self.type_name)
-            elif SemanticAnalyzer.CType.is_pointer(other):
-                return SemanticAnalyzer.CType(other.type_name)
-            else:
-                # Combine non-pointer types
-                left_order = SemanticAnalyzer.CType.order.index(self.type_name)
-                right_order = SemanticAnalyzer.CType.order.index(other.type_name)
-                return SemanticAnalyzer.CType(SemanticAnalyzer.CType.order[max(left_order, right_order)])
-
-        def __eq__(self, other):
-            """ Checks for equality of types """
-            return self.type_name == other.type_name
-
-        def __repr__(self):
-            return '{}'.format(self.type_name)
-
-        def __str__(self):
-            return self.__repr__()
 
     def __init__(self):
         """ Initializes the analyzer, there is no scope"""
@@ -64,6 +28,7 @@ class SemanticAnalyzer(Visitor):
 
     def warning(self, message):
         print("SemanticWarning:" + MessageColor.WARNING + message + MessageColor.ENDC)
+
 
     def get_next_scope_name(self, name):
         """ Generates next scope name by incrementing the number of the current scope. """
@@ -81,7 +46,7 @@ class SemanticAnalyzer(Visitor):
     """
         A series of visit functions. Beware of inconsistent return values:
         - visit_Param returns a symbol containing that param
-        - visit_Expression and functions alike return a CType with the numeric type
+        - visit_Expression and functions alike return a CType node with the numeric type
         - the rest of the functions don't return anything
     """
 
@@ -92,9 +57,6 @@ class SemanticAnalyzer(Visitor):
             scope_level=1,
             enclosing_scope=self.current_scope,
         )
-
-        # Only the global scope has builtin types
-        global_scope.init_builtins()
 
         # Set the global scope as the current scope and recurse
         self.current_scope = global_scope
@@ -109,13 +71,11 @@ class SemanticAnalyzer(Visitor):
     def visit_VarDecl(self, node):
         """ type_node var_node """
 
-        # Get a symbol for this type
-        type_name = node.type_node.value
-        type_symbol = self.current_scope.lookup(type_name)
+        self.visit(node.type_node)
 
         # Create a symbol for this variable and insert in the current symbol table
         var_name = node.var_node.value
-        var_symbol = VarSymbol(var_name, type_symbol)
+        var_symbol = VarSymbol(var_name, node.type_node.c_type)
 
         if self.current_scope.lookup(var_name, current_scope_only=True):
             self.error(
@@ -136,22 +96,28 @@ class SemanticAnalyzer(Visitor):
 
         for func in functions:
             # Get function return type
-            type_symbol = self.current_scope.lookup(func.return_type)
+            try:
+                c_ret_type = CType.from_string(func.return_type)
+            except RuntimeError as e:
+                self.error(str(e) + " at line {}".format(node.line))
 
             func_name = func.__name__
             if self.current_scope.lookup(func_name):
                 continue
 
             # Create function symbol
-            func_symbol = FunctionSymbol(func_name, type_symbol=type_symbol)
+            func_symbol = FunctionSymbol(func_name, c_ret_type)
 
             if func.arg_types is None:
                 func_symbol.params = None
             else:
                 # add a symbol for each param
                 for i, param_type in enumerate(func.arg_types):
-                    type_symbol = self.current_scope.lookup(param_type)
-                    var_symbol = VarSymbol('param{:02d}'.format(i + 1), type_symbol)
+                    try:
+                        c_type = CType.from_string(param_type)
+                    except RuntimeError as e:
+                        self.error(str(e) + " at line {}".format(node.line))
+                    var_symbol = VarSymbol('param{:02d}'.format(i + 1), c_type)
                     func_symbol.params.append(var_symbol)
 
             self.current_scope.insert(func_symbol)
@@ -159,17 +125,13 @@ class SemanticAnalyzer(Visitor):
     def visit_FunctionDecl(self, node):
         """ type_node  func_name ( params ) body """
 
-        # Get function return type and fetch the type symbol
-        type_name = node.type_node.value
-        type_symbol = self.current_scope.lookup(type_name)
-
         # Create a function symbol and insert it in the current table
         func_name = node.func_name
         if self.current_scope.lookup(func_name):
             self.error(
                 "Error: Duplicate identifier '{}' found at line {}".format(func_name, node.line)
             )
-        func_symbol = FunctionSymbol(func_name, type_symbol=type_symbol)
+        func_symbol = FunctionSymbol(func_name, node.type_node.c_type)
         self.current_scope.insert(func_symbol)
 
         # Create a new scope for the function
@@ -192,12 +154,8 @@ class SemanticAnalyzer(Visitor):
     def visit_Param(self, node):
         """ type_node var_node, returns a param symbol"""
 
-        # Create a symbol for the param and insert it in the current table
-        type_name = node.type_node.value
-        type_symbol = self.current_scope.lookup(type_name)
-
         var_name = node.var_node.value
-        var_symbol = VarSymbol(var_name, type_symbol)
+        var_symbol = VarSymbol(var_name, node.type_node.c_type)
 
         if self.current_scope.lookup(var_name, current_scope_only=True):
             self.error(
@@ -318,53 +276,56 @@ class SemanticAnalyzer(Visitor):
 
         # Allow logical operators only on ints
         if node.token.type == AMPERSAND or node.token.type == OR_OP or node.token.type == XOR_OP:
-            if left_type.type_name != "int" or right_type.type_name != "int":
+            if left_type.type_spec != 'int' or right_type.type_spec != 'int':
                 self.error("Unsupported types ltype:<{}> rtype:<{}> at bitwise operator {} at line {}".format(
-                    left_type.type_name,
-                    right_type.type_name,
+                    str(left_type),
+                    str(right_type),
                     node.token.type,
                     node.line
                 ))
 
         # Disallow two pointers
-        if SemanticAnalyzer.CType.is_pointer(left_type) and SemanticAnalyzer.CType.is_pointer(right_type):
+        if left_type.pointer and right_type.pointer:
             self.error("Two pointer types (<{}> and <{}>) at binary operator {} at line {}".format(
-                    left_type.type_name,
-                    right_type.type_name,
+                    str(left_type),
+                    str(right_type),
                     node.token.type,
                     node.line
                 ))
 
         # If one pointer allow only PLUS and MINUS with int
-        if SemanticAnalyzer.CType.is_pointer(left_type):
-            if right_type.type_name != "int" or (node.token.type != PLUS and node.token.type != MINUS):
+        if left_type.pointer:
+            if right_type.type_spec != 'int' or (node.token.type != PLUS and node.token.type != MINUS):
                 self.error("Unsupported pointer arithmetic with types (<{}> and <{}>) at bin op {} at line {}".format(
-                    left_type.type_name,
-                    right_type.type_name,
+                    str(left_type),
+                    str(right_type),
                     node.token.type,
                     node.line
                 ))
-        elif SemanticAnalyzer.CType.is_pointer(right_type):
-            if left_type.type_name != "int" or (node.token.type != PLUS and node.token.type != MINUS):
+        elif right_type.pointer:
+            if left_type.type_spec != 'int' or (node.token.type != PLUS and node.token.type != MINUS):
                 self.error("Unsupported pointer arithmetic with types (<{}> and <{}>) at bin op {} at line {}".format(
-                    left_type.type_name,
-                    right_type.type_name,
+                    str(left_type),
+                    str(right_type),
                     node.token.type,
                     node.line
                 ))
 
         # Return the resulting type
-        return left_type.combine_with(right_type)
+        return CType.combine_types(left_type, right_type)
 
     def visit_UnOp(self, node):
         """ op expr """
         # If the operator is the type this is a cast
-        if node in NUM_TYPE_TOKENS:
-            self.visit(node.expr)
-            return SemanticAnalyzer.CType(node.token.value)
+        if isinstance(node, Type):
+            return self.visit(node)
 
         # Visit the expression
         expr_type = self.visit(node.expr)
+
+        # Fix for casting
+        if isinstance(node.token, Type):
+            return node.token.c_type
 
         # INC/DEC -> lvalue
         if node.token.type in [INC_OP, DEC_OP] and not self.is_lvalue(node.expr):
@@ -376,27 +337,27 @@ class SemanticAnalyzer(Visitor):
 
         # ASTERISK -> pointer
         if node.token.type == ASTERISK:
-            if SemanticAnalyzer.CType.is_pointer(expr_type):
-                return SemanticAnalyzer.CType(expr_type.type_name[:-1])
+            if expr_type.pointer:
+                return expr_type.dereference()
             else:
                 self.error(
                     "Can't dereference type ({}) at line {}".format(
-                        expr_type,
+                        str(expr_type),
                         node.line
                     )
                 )
 
         # pointer -> ASTERISK/INC/DEC
-        if SemanticAnalyzer.CType.is_pointer(expr_type) and node.token.type not in [INC_OP, DEC_OP, ASTERISK]:
+        if expr_type.pointer and node.token.type not in [INC_OP, DEC_OP, ASTERISK]:
             self.error("Unsupported pointer arithmetic on type (<{}>) at un op {} at line {}".format(
-                expr_type.type_name,
+                str(expr_type),
                 node.token.type,
                 node.line
             ))
 
         # AMPERSAND casts to int
         if node.token.type == AMPERSAND:
-            return SemanticAnalyzer.CType('int')
+            return CType(type_spec='int')
         else:
             return expr_type
 
@@ -404,15 +365,15 @@ class SemanticAnalyzer(Visitor):
         """ condition ? texpression : fexpression """
         # Visit all three expressions and return the resulting CType
         self.visit(node.condition)
-        true_exp = self.visit(node.true_exp)
-        false_exp = self.visit(node.false_exp)
-        if true_exp != false_exp:
+        true_c_type = self.visit(node.true_exp)
+        false_c_type = self.visit(node.false_exp)
+        if true_c_type != false_c_type:
             self.warning("Incompatibile types at ternary operator texpr:<{}> fexpr:<{}> at line {}".format(
-                true_exp,
-                false_exp,
+                str(true_c_type),
+                str(false_c_type),
                 node.line
             ))
-        return true_exp
+        return false_c_type
 
     def is_lvalue(self, node):
         if isinstance(node, Var):
@@ -438,28 +399,28 @@ class SemanticAnalyzer(Visitor):
         # it can be NumVar/PtrVar/*PtrVar
 
         # Allow only +=int and -=int and =int and =matching_type if it is a pointer
-        if SemanticAnalyzer.CType.is_pointer(left):
-            if node.token.type == ADD_ASSIGN and right.type_name == 'int':
+        if left.pointer:
+            if node.token.type == ADD_ASSIGN and right.type_spec == 'int':
                 return right
-            if node.token.type == SUB_ASSIGN and right.type_name == 'int':
+            if node.token.type == SUB_ASSIGN and right.type_spec == 'int':
                 return right
-            if node.token.type == ASSIGN and SemanticAnalyzer.CType.is_pointer(right) and \
-                    right.type_name == left.type_name:
+            if node.token.type == ASSIGN and right.pointer and left == right:
                 return right
-            if node.token.type == ASSIGN and right.type_name == 'int':
+            if node.token.type == ASSIGN and right.type_spec == 'int':
                 return right
             self.error("Unsupported pointer assignment on types (<{}> <{}>) at ass op {} at line {}".format(
-                left.type_name,
-                right.type_name,
+                str(left),
+                str(right),
                 node.token.type,
                 node.line
             ))
         else:
             # Otherwise, don't allow assignment with different types
-            if left != right:
+            # TODO maybe don't allow but let's try
+            if False and left != right:
                 self.warning("Incompatible types when assigning to type <{}> from type <{}> at line {}".format(
-                    left,
-                    right,
+                    str(left),
+                    str(right),
                     node.line
                 ))
 
@@ -480,21 +441,33 @@ class SemanticAnalyzer(Visitor):
             )
 
         # Get type symbol from var symbol and construct a CType based on its name
-        return SemanticAnalyzer.CType(var_symbol.type_symbol.name)
+        return var_symbol.c_type
 
     def visit_Type(self, node):
+        if node.c_type.pointer:
+            base_type = node.c_type.dereference()
+        else:
+            base_type = node.c_type
+        if base_type not in CType.all_types:
+            self.error(
+                "Invalid type (<{}>) at line {}".format(
+                    str(node.c_type),
+                    node.line
+                )
+            )
+
         # Just return the CType
-        return SemanticAnalyzer.CType(node.value)
+        return node.c_type
 
     def visit_Num(self, node):
         """ value """
         # Branch on token type to return the appropriate CType
         if node.token.type == INTEGER_CONST:
-            return SemanticAnalyzer.CType("int")
+            return CType(type_spec='int')
         elif node.token.type == CHAR_CONST:
-            return SemanticAnalyzer.CType("char")
+            return CType(type_spec='char')
         elif node.token.type == REAL_CONST:
-            return SemanticAnalyzer.CType("float")
+            return CType(type_spec='float')
         else:
             self.error("Unknown num token type: {}".format(node.token.type))
 
@@ -527,7 +500,7 @@ class SemanticAnalyzer(Visitor):
         if func_symbol.params is None:
             for i, arg in enumerate(node.args):
                 self.visit(arg)
-            return SemanticAnalyzer.CType(func_symbol.type_symbol.name)
+            return func_symbol.c_type
 
         # Check if there is a correct number of arguments
         if len(node.args) != len(func_symbol.params):
@@ -546,7 +519,7 @@ class SemanticAnalyzer(Visitor):
 
         for i, arg in enumerate(node.args):
             arg_type = self.visit(arg)
-            param_type = SemanticAnalyzer.CType(func_symbol.params[i].type_symbol.name)
+            param_type = func_symbol.params[i].c_type
             param_types.append(param_type)
             arg_types.append(arg_type)
 
@@ -560,7 +533,7 @@ class SemanticAnalyzer(Visitor):
             ))
 
         # Return the return value CType
-        return SemanticAnalyzer.CType(func_symbol.type_symbol.name)
+        return func_symbol.c_type
 
     @staticmethod
     def analyze(tree):

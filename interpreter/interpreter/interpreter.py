@@ -1,6 +1,5 @@
 from .memory import *
-from .types import Number, Pointer, sizeof
-from ..lexical_analysis.token_type import NUM_TYPE_TOKENS
+from .number import Number
 from ..lexical_analysis.lexer import Lexer
 from ..lexical_analysis.token_type import *
 from ..syntax_analysis.parser import Parser
@@ -8,10 +7,13 @@ from ..syntax_analysis.tree import *
 from ..semantic_analysis.analyzer import SemanticAnalyzer
 from ..common.utils import get_functions, MessageColor
 from ..common.visitor import Visitor
+from ..common.ctype import CType
 
-# control flow flags
-CF_BREAK = "CF_BREAK"
-CF_CONTINUE = "CF_CONTINUE"
+
+class ControlFlowFlag:
+    def __init__(self, value):
+        # BREAK or CONTINUE
+        self.value = value
 
 
 class Interpreter(Visitor):
@@ -40,20 +42,20 @@ class Interpreter(Visitor):
             node.library_name
         ))
         for func in functions:
-            self.memory.declare('py_function', func.__name__)
+            self.memory.declare_fun(func.__name__)
             self.memory[func.__name__] = func
 
     def visit_FunctionDecl(self, node):
         """ Maps function name to FunctionDecl node """
-        self.memory.declare('c_function', node.func_name)
+        self.memory.declare_fun(node.func_name)
         self.memory[node.func_name] = node
 
     def visit_VarDecl(self, node):
         """ Declares a new variable """
-        self.memory.declare(node.type_node.value, node.var_node.value)
+        self.memory.declare_num(node.type_node.c_type, node.var_node.value)
 
     # functions
-    # these visits return function return value (as a Number/Pointer)
+    # these visits return function return value (as a Number)
 
     def visit_FunctionCall(self, node):
         # Evaluate argument expressions
@@ -76,7 +78,7 @@ class Interpreter(Visitor):
         """
         func = self.memory[node.name]
         if callable(func):
-            return Number(func.return_type, func(*args))
+            return Number(CType.from_string(func.return_type), func(*args))
 
         # Otherwise, func is a FunctionDecl AstNode, we can properly simulate
 
@@ -94,12 +96,12 @@ class Interpreter(Visitor):
         """
         for idx, arg in enumerate(args):
             param = func.params[idx]
-            self.memory.declare(param.type_node.value, param.var_node.value)
+            self.memory.declare_num(param.type_node.c_type, param.var_node.value)
             self.memory[param.var_node.value] = arg
 
         # Visit the function body and cast the return value to the appropriate type
         raw_ret_val = self.visit(func.body)
-        ret_val = Number(func.type_node.value, raw_ret_val.value)
+        ret_val = Number(func.type_node.c_type, raw_ret_val.value)
         # Delete the frame and return
         self.memory.del_frame()
         return ret_val
@@ -124,7 +126,7 @@ class Interpreter(Visitor):
             # catch the cf flag and propagate up
             # break will break the outer loop
             # continue can be ignored by the loop but it will break compound statements
-            if type(ret) == str and ret in [CF_BREAK, CF_CONTINUE]:
+            if isinstance(ret, ControlFlowFlag):
                 self.memory.del_scope()
                 return ret
         self.memory.del_scope()
@@ -134,10 +136,10 @@ class Interpreter(Visitor):
         return self.visit(node.expression)
 
     def visit_BreakStmt(self, node):
-        return CF_BREAK
+        return ControlFlowFlag("BREAK")
 
     def visit_ContinueStmt(self, node):
-        return CF_CONTINUE
+        return ControlFlowFlag("CONTINUE")
 
     def visit_SwitchStmt(self, node):
         expr = self.visit(node.expr)
@@ -155,7 +157,7 @@ class Interpreter(Visitor):
                 # execute!
                 if not isinstance(child, SwitchCaseLabel) and not isinstance(child, SwitchDefaultLabel):
                     ret = self.visit(child)
-                    if type(ret) == str and ret in [CF_BREAK]:
+                    if isinstance(ret, ControlFlowFlag) and ret.value == "BREAK":
                         break
 
     def visit_IfStmt(self, node):
@@ -169,14 +171,14 @@ class Interpreter(Visitor):
     def visit_WhileStmt(self, node):
         while self.visit(node.condition):
             ret = self.visit(node.body)
-            if type(ret) == str and ret in [CF_BREAK]:
+            if isinstance(ret, ControlFlowFlag) and ret.value == "BREAK":
                 break
 
 
     def visit_DoWhileStmt(self, node):
         while True:
             ret = self.visit(node.body)
-            if type(ret) == str and ret in [CF_BREAK]:
+            if isinstance(ret, ControlFlowFlag) and ret.value == "BREAK":
                 break
             if not self.visit(node.condition):
                 break
@@ -185,7 +187,7 @@ class Interpreter(Visitor):
         self.visit(node.setup)
         while self.visit(node.condition):
             ret = self.visit(node.body)
-            if type(ret) == str and ret in [CF_BREAK]:
+            if isinstance(ret, ControlFlowFlag) and ret.value == "BREAK":
                 break
             self.visit(node.increment)
 
@@ -199,31 +201,13 @@ class Interpreter(Visitor):
         # return the last comma-delimited child
         return expr
 
-    def cast(self, type_name, num):
-        """ Cast a Number/Pointer to a new type"""
-        # extract raw numerical value
-        if isinstance(num, Pointer):
-            val = num.address
-        elif isinstance(num, Number):
-            val = num.value
-
-        # get the python type to cast to
-        type_py = types_py[type_name]
-
-        if type_py == Pointer:
-            # cast to pointer
-            return Pointer(type_name, int(val))
-        else:
-            # cast to number
-            return Number(type_name, type_py(val))
-
     def get_lvalue_address(self, lvalue_node):
         if isinstance(lvalue_node, Var):
             var_name = lvalue_node.value
             return self.memory.get_address(var_name)
         else:  # UnOp(*, Ptr)
             ptr_name = lvalue_node.expr.value
-            return self.memory[ptr_name].address
+            return self.memory[ptr_name].value
 
     def visit_Assignment(self, node):
         # node.left is lvalue - Var/UnOp(*, Var)
@@ -235,18 +219,17 @@ class Interpreter(Visitor):
 
         # combine the operands
         if node.token.type == ADD_ASSIGN:
-            val_result = self.cast(val_self.type_name, val_self+val_right)
+            val_result = Number(val_self.c_type, val_self+val_right)
         elif node.token.type == SUB_ASSIGN:
-            val_result = self.cast(val_self.type_name, val_self-val_right)
+            val_result = Number(val_self.c_type, val_self-val_right)
         elif node.token.type == MUL_ASSIGN:
-            val_result = self.cast(val_self.type_name, val_self*val_right)
+            val_result = Number(val_self.c_type, val_self*val_right)
         elif node.token.type == DIV_ASSIGN:
-            val_result = self.cast(val_self.type_name, val_self/val_right)
+            val_result = Number(val_self.c_type, val_self/val_right)
         elif node.token.type == ASSIGN:
-            # this will also cast Number->Pointer if that's the assignment
-            val_result = self.cast(val_self.type_name, val_right)
+            val_result = Number(val_self.c_type, val_right)
         else:
-            self.error("Unknown assignment op: {}".format(node.token.type))
+            raise RuntimeError("Unknown assignment op: {}".format(node.token.type))
 
         # perform the assignment
         self.memory.set_at_address(address, val_result)
@@ -254,40 +237,40 @@ class Interpreter(Visitor):
 
     def visit_UnOp(self, node):
         if node.prefix:
-            if node.token.type == AMPERSAND:
+            if isinstance(node.token, Type):
+                # Cast
+                # there is a to do for this to be refactored but node.token is an AstNode in this case
+                return Number(node.token.c_type, self.visit(node.expr))
+            elif node.token.type == AMPERSAND:
                 # reference - return variable address
                 # node.expr is a Var node
-                return Number('int', self.memory.get_address(node.expr.value))
+                return Number(CType(type_spec='int'), self.memory.get_address(node.expr.value))
             elif node.token.type == ASTERISK:
                 # dereference - return variable at the pointed address
                 # node.expr is anything but a pointer type
                 res = self.visit(node.expr)
-                address = res.address if isinstance(res, Pointer) else res.value
-                return self.memory.get_at_address(address)
+                return self.memory.get_at_address(res.value)
             elif node.token.type == INC_OP:
                 # node.expr is an LValue
                 address = self.get_lvalue_address(node.expr)
                 val_self = self.memory.get_at_address(address)
-                val_result = self.cast(val_self.type_name, val_self+Number('int', 1))
+                val_result = Number(val_self.c_type, val_self+Number(CType(type_spec='int'), 1))
                 self.memory.set_at_address(address, val_result)
                 return val_result
             elif node.token.type == DEC_OP:
                 # node.expr is an LValue
                 address = self.get_lvalue_address(node.expr)
                 val_self = self.memory.get_at_address(address)
-                val_result = self.cast(val_self.type_name, val_self-Number('int', 1))
+                val_result = Number(val_self.c_type, val_self-Number(CType(type_spec='int'), 1))
                 self.memory.set_at_address(address, val_result)
                 return val_result
             elif node.token.type == MINUS:
-                return Number('int', -1) * self.visit(node.expr)
+                return Number(CType(type_spec='int'), -1) * self.visit(node.expr)
             elif node.token.type == PLUS:
                 return self.visit(node.expr)
             elif node.token.type == LOG_NEG:
                 res = self.visit(node.expr)
                 return res.log_neg()
-            elif node.token.type in NUM_TYPE_TOKENS:
-                res = self.visit(node.expr)
-                return self.cast(node.token.value, res)
             else:
                 raise RuntimeError("Unknown prefix operator, earlier stages should catch this")
         else:
@@ -295,14 +278,14 @@ class Interpreter(Visitor):
                 # node.expr is an LValue
                 address = self.get_lvalue_address(node.expr)
                 val_self = self.memory.get_at_address(address)
-                val_result = self.cast(val_self.type_name, val_self+Number('int', 1))
+                val_result = Number(val_self.c_type, val_self+Number(CType(type_spec='int'), 1))
                 self.memory.set_at_address(address, val_result)
                 return val_self
             elif node.token.type == DEC_OP:
                 # node.expr is an LValue
                 address = self.get_lvalue_address(node.expr)
                 val_self = self.memory.get_at_address(address)
-                val_result = self.cast(val_self.type_name, val_self-Number('int', 1))
+                val_result = Number(val_self.c_type, val_self-Number(CType(type_spec='int'), 1))
                 self.memory.set_at_address(address, val_result)
                 return val_self
             else:
@@ -344,11 +327,11 @@ class Interpreter(Visitor):
 
     def visit_Num(self, node):
         if node.token.type == INTEGER_CONST:
-            return Number('int', node.value)
+            return Number(CType(type_spec='int'), node.value)
         elif node.token.type == CHAR_CONST:
-            return Number('char', node.value)
+            return Number(CType(type_spec='char'), node.value)
         elif node.token.type == REAL_CONST:
-            return Number('float', node.value)
+            return Number(CType(type_spec='double'), node.value)
         else:
             raise RuntimeError("Unknown num const, earlier stages should catch this")
 

@@ -53,6 +53,6 @@ int main() {
              break;
         default:
              printf("Default");
-    }
+    } // 4!Fallthrough!
     return 0;
 }

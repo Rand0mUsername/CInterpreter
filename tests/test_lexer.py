@@ -119,6 +119,13 @@ class LexerTestCase(unittest.TestCase):
             lexer=lexer
         )
 
+    def test_types(self):
+        lexer = Lexer('short long unsigned signed int char float double')
+        self.check_list(
+            SHORT, LONG, UNSIGNED, SIGNED, INT, CHAR, FLOAT, DOUBLE,
+            lexer=lexer
+        )
+
     
 if __name__ == '__main__':
     unittest.main()

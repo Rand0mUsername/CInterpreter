@@ -1,5 +1,6 @@
 
-from .types import Number, Pointer, sizeof, types_py
+from .number import Number
+from ..common.ctype import CType
 
 
 class Scope(object):
@@ -118,6 +119,8 @@ class Memory(object):
 
         Mapping name->address in scopes and address->val in raw_memory is a way to simulate C memory system in python.
         In reality the raw_memory map would not be necessary since scope members would inherently have addresses.
+
+        Possible values are Number(ctype, value), FunctionDecl(C Fun), <function> (Py Fun)
     """
 
     # Addresses start from this number and always grow
@@ -129,31 +132,36 @@ class Memory(object):
         self.raw_memory = dict()
         self.next_free_address = Memory.STARTING_ADDRESS
 
-    def malloc(self, block_sz):
+    def _malloc(self, block_sz):
         """ Allocates a memory block """
         ret_address = self.next_free_address
         self.next_free_address += block_sz
         return ret_address
 
-    def declare(self, var_type, var_name):
-        """ Reserves space for a variable """
-
-        # find the current scope
+    def _get_curr_scope(self):
         if self.stack.is_empty():
-            scope = self.global_scope
+            return self.global_scope
         else:
-            scope = self.stack.curr_frame.curr_scope
+            return self.stack.curr_frame.curr_scope
+
+    def _declare(self, name, size_bytes, initial_value):
+        # find the current scope
+        scope = self._get_curr_scope()
 
         # name -> address
-        scope[var_name] = self.malloc(sizeof(var_type))
+        scope[name] = self._malloc(size_bytes)  # random fixed fun size
 
-        # address -> value
-        if var_type[-1] == '*':
-            self.raw_memory[scope[var_name]] = Pointer(var_type)
-        elif var_type in types_py:
-            self.raw_memory[scope[var_name]] = Number(var_type)
-        else:
-            self.raw_memory[scope[var_name]] = None
+        # address -> random value
+        self.raw_memory[scope[name]] = initial_value
+
+    def declare_fun(self, name):
+        """ Reserves space for a fun variable """
+        # random fixed size for functions
+        self._declare(name, 32, None)
+
+    def declare_num(self, c_type, name):
+        """ Reserves space for a num variable """
+        self._declare(name, c_type.size_bytes(), Number(c_type))
 
     def find_key(self, key):
         """ Returns the scope with the given key starting from the current scope """
@@ -175,11 +183,13 @@ class Memory(object):
 
     def set_at_address(self, address, value):
         self.raw_memory[address] = value
+        if value is None:
+            raise RuntimeError()
 
     def get_at_address(self, address):
         if address not in self.raw_memory:
-            # Return a random number
-            self.raw_memory[address] = Number('int')
+            # Return a random int number
+            self.raw_memory[address] = Number(CType(type_spec='int'))
         return self.raw_memory[address]
 
     def __setitem__(self, key, value):

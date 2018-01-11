@@ -1,4 +1,3 @@
-
 class AstNode(object):
     """ A node in the abstract syntax tree """
     def __init__(self, line):
@@ -24,27 +23,11 @@ class String(AstNode):
         # String value
         self.value = token.value
 
-
+# TODO: int* a, b, c creates three pointers and int *a, *b is not allowed, FIX
 class Type(AstNode):
-    def __init__(self, token, line, pointer=False):
+    def __init__(self, line, c_type):
         AstNode.__init__(self, line)
-        # Base type token (T even for T*)
-        self.token = token
-        # Type name as a string (T or T*)
-        self.value = token.value
-        if pointer:
-            self.value += '*'
-
-
-class Lvalue(AstNode):
-    def __init__(self, var, line, dereferenced = False):
-        # The expression we can assign to
-        AstNode.__init__(self, line)
-        # Var node
-        self.var = var
-        # Was there a * operator
-        self.dereferenced = dereferenced
-
+        self.c_type = c_type
 
 class Var(AstNode):
     def __init__(self, token, line):

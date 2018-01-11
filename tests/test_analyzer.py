@@ -302,6 +302,31 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                             }
                         """)
 
+    def test_types(self):
+        self.analyze("""
+                    #include <stdio.h>
+                    int main() {
+                        unsigned short int i = 4;
+                        long double f = 5;
+                        short unsigned int x = 9;
+                        signed char y = 3;
+                        return 0;
+                    }
+                """)
+
+    def test_types_fail(self):
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                        #include <stdio.h>
+                        int main() {
+                            unsigned short int i = 4;
+                            long double f = 5;
+                            short unsigned int x = 9;
+                            long char x = 3;
+                            return 0;
+                        }
+                    """)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -3,7 +3,9 @@ Supports basic functions from stdio.h library.
 """
 
 from ..common.utils import definition
-from ..interpreter.types import Number
+from ..interpreter.number import Number
+from ..common.ctype import CType
+
 
 import re
 
@@ -48,7 +50,7 @@ def scanf(*args):
 
     # Cast tokens and perform assignments
     for spec, address, val in zip(specifiers, addresses, tokens):
-        memory.set_at_address(address.value, Number(get_type_name(spec), val))
+        memory.set_at_address(address.value, Number(CType.from_string(get_type_name(spec)), val))
 
     return len(tokens)
 
