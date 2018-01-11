@@ -56,6 +56,7 @@ class Interpreter(Visitor):
 
     # functions
     # these visits return function return value (as a Number)
+    memory_modifying_fns = ['scanf', 'malloc', 'free']
 
     def visit_FunctionCall(self, node):
         # Evaluate argument expressions
@@ -68,7 +69,7 @@ class Interpreter(Visitor):
                a singleton memory, but that is considered bad practice, so for now we will send 
                an additional memory argument to all functions that need it.
         """
-        if node.name == 'scanf':
+        if node.name in Interpreter.memory_modifying_fns:
             args.append(self.memory)
 
         """
@@ -78,7 +79,17 @@ class Interpreter(Visitor):
         """
         func = self.memory[node.name]
         if callable(func):
-            return Number(CType.from_string(func.return_type), func(*args))
+
+            # pass regular numbers to python functions
+            for i in range(len(args)):
+                val = args[i]
+                if isinstance(val, Number):
+                    args[i] = val.value
+
+            ret = func(*args)
+            if ret is None:
+                return ret
+            return Number(CType.from_string(func.return_type), ret)
 
         # Otherwise, func is a FunctionDecl AstNode, we can properly simulate
 
@@ -101,6 +112,8 @@ class Interpreter(Visitor):
 
         # Visit the function body and cast the return value to the appropriate type
         raw_ret_val = self.visit(func.body)
+        if raw_ret_val is None:
+            return raw_ret_val
         ret_val = Number(func.type_node.c_type, raw_ret_val.value)
         # Delete the frame and return
         self.memory.del_frame()
@@ -111,6 +124,7 @@ class Interpreter(Visitor):
             if isinstance(child, ReturnStmt):
                 return self.visit(child)
             self.visit(child)
+        return None
 
     # statements
     # loops return nothing

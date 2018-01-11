@@ -39,7 +39,7 @@ class Lexer(object):
         current_char: the character at the current lexer position
         line: the current line number
         """
-        self.text = text.replace('\\n', '\n')
+        self.text = text
         self.pos = 0
         self.current_char = self.text[self.pos]
         self.line = 1
@@ -48,7 +48,7 @@ class Lexer(object):
         """ Raises a lexical error. """
         raise LexicalError("LexicalError: " + message)
 
-    def advance(self, n = 1):
+    def advance(self, n=1):
         """ Advances the `pos` pointer and sets the `current_char` variable. """
         self.pos += n
         if self.pos >= len(self.text):
@@ -126,6 +126,7 @@ class Lexer(object):
             result += self.current_char
             self.advance()
         self.advance()
+        result = result.replace('\\n', '\n')
         return Token(STRING, result)
 
     def char(self):
@@ -152,7 +153,6 @@ class Lexer(object):
     @property
     def get_next_token(self):
         """ The main lexer method that returns the next token in the text. """
-
         while self.current_char is not None:
 
             if self.current_char.isspace():

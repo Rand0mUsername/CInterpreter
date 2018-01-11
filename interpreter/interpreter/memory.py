@@ -115,7 +115,8 @@ class Stack(object):
 class Memory(object):
     """
         A simulated program memory, contains a raw_memory map that maps addresses to values and a stack with frames.
-        Every frame contains nested scopes and each scope maps symbol names to addresses. There is also a global scope.
+        Every frame contains nested scopes and each scope maps symbol names to addresses. There is also a global scope
+        and a list of dynamically allocated addresses.
 
         Mapping name->address in scopes and address->val in raw_memory is a way to simulate C memory system in python.
         In reality the raw_memory map would not be necessary since scope members would inherently have addresses.
@@ -131,8 +132,9 @@ class Memory(object):
         self.stack = Stack()
         self.raw_memory = dict()
         self.next_free_address = Memory.STARTING_ADDRESS
+        self.dyn_alloc_addr = set()
 
-    def _malloc(self, block_sz):
+    def allocate(self, block_sz):
         """ Allocates a memory block """
         ret_address = self.next_free_address
         self.next_free_address += block_sz
@@ -149,7 +151,7 @@ class Memory(object):
         scope = self._get_curr_scope()
 
         # name -> address
-        scope[name] = self._malloc(size_bytes)  # random fixed fun size
+        scope[name] = self.allocate(size_bytes)  # random fixed fun size
 
         # address -> random value
         self.raw_memory[scope[name]] = initial_value

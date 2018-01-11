@@ -12,7 +12,7 @@ import re
 @definition(return_type='int', arg_types=None)
 def printf(*args):
     fmt, *params = args
-    message = fmt % tuple([param.value if isinstance(param, Number) else param.address for param in params])
+    message = fmt % tuple([param for param in params])
     result = len(message)
     print(message, end='')
     return result

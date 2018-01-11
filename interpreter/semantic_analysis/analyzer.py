@@ -97,7 +97,10 @@ class SemanticAnalyzer(Visitor):
         for func in functions:
             # Get function return type
             try:
-                c_ret_type = CType.from_string(func.return_type)
+                if func.return_type is None:
+                    c_ret_type = None
+                else:
+                    c_ret_type = CType.from_string(func.return_type)
             except RuntimeError as e:
                 self.error(str(e) + " at line {}".format(node.line))
 
@@ -347,8 +350,8 @@ class SemanticAnalyzer(Visitor):
                     )
                 )
 
-        # pointer -> ASTERISK/INC/DEC
-        if expr_type.pointer and node.token.type not in [INC_OP, DEC_OP, ASTERISK]:
+        # pointer -> ASTERISK/INC/DEC/AMPERSAND
+        if expr_type.pointer and node.token.type not in [INC_OP, DEC_OP, ASTERISK, AMPERSAND]:
             self.error("Unsupported pointer arithmetic on type (<{}>) at un op {} at line {}".format(
                 str(expr_type),
                 node.token.type,
@@ -417,7 +420,7 @@ class SemanticAnalyzer(Visitor):
         else:
             # Otherwise, don't allow assignment with different types
             # TODO maybe don't allow but let's try
-            if False and left != right:
+            if left != right:
                 self.warning("Incompatible types when assigning to type <{}> from type <{}> at line {}".format(
                     str(left),
                     str(right),
