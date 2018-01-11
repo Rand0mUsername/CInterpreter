@@ -1,17 +1,15 @@
 
                 program                     : declarations
 
-                declarations                : (include_library | function_declaration | declaration_list)*
+                declarations                : (include_library | function_declaration | declaration)*
 
                 include_library             : HASH ID<'include'> LESS_THAN ID DOT ID<'h'> GREATER_THAN
 
                 function_declaration        : type_spec ID LPAREN parameters RPAREN compound_statement
 
-                function_body               : LBRACKET (declaration_list | statement)* RBRACKET
+                function_body               : LBRACKET (declaration | statement)* RBRACKET
 
                 parameters                  : type_spec variable (COMMA type_spec variable)*
-
-                declaration_list            : declaration+
 
                 declaration                 : type_spec init_declarator_list SEMICOLON
 
@@ -27,7 +25,7 @@
                                             | expression_statement
 
 
-                compound_statement          : LBRACKET (declaration_list | statement)* RBRACKET
+                compound_statement          : LBRACKET (declaration | statement)* RBRACKET
 
                 switch_case                 : CASE expression COLON
                                             | DEFAULT COLON
@@ -37,7 +35,7 @@
                                             | FOR LPAREN expression_statement expression_statement (expression)? RPAREN statement
 
                 selection_statement         : IF LPAREN expression RPAREN statement (ELSE statement)?
-                                            | SWITCH LPAREN expression RPAREN LBRACKET (declaration_list | statement | switch_case)* RBRACKET
+                                            | SWITCH LPAREN expression RPAREN LBRACKET (declaration | statement | switch_case)* RBRACKET
 
                 jump_statement              : RETURN expression? SEMICOLON
                                             | BREAK SEMICOLON

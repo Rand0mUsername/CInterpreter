@@ -57,7 +57,7 @@ class Parser(object):
             elif self.check_function():
                 declarations.append(self.function_declaration())
             else:
-                declarations.extend(self.declaration_list())
+                declarations.extend(self.declaration())
         return declarations
 
     def include_library(self):
@@ -122,7 +122,7 @@ class Parser(object):
         self.eat(LBRACKET)
         while self.current_token.type != RBRACKET:
             if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
-                result.extend(self.declaration_list())
+                result.extend(self.declaration())
             else:
                 result.append(self.statement())
         self.eat(RBRACKET)
@@ -150,15 +150,6 @@ class Parser(object):
                     line=self.lexer.line
                 ))
         return nodes
-
-    def declaration_list(self):
-        """
-        declaration_list            : declaration+
-        """
-        result = self.declaration()
-        while self.current_token.type == (CHAR, INT, FLOAT, DOUBLE):
-            result.extend(self.declaration())
-        return result
 
     def declaration(self):
         """
@@ -237,7 +228,7 @@ class Parser(object):
         self.eat(LBRACKET)
         while self.current_token.type != RBRACKET:
             if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
-                result.extend(self.declaration_list())
+                result.extend(self.declaration())
             else:
                 result.append(self.statement())
         self.eat(RBRACKET)
@@ -315,7 +306,7 @@ class Parser(object):
             result = []
             while self.current_token.type != RBRACKET:
                 if self.current_token.type in (CHAR, INT, FLOAT, DOUBLE):
-                    result.extend(self.declaration_list())
+                    result.extend(self.declaration())
                 elif self.current_token.type in (CASE, DEFAULT):
                     result.append(self.switch_case_label())
                 else:
