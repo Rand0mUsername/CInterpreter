@@ -1,0 +1,3 @@
+- simulacija nD nizova
+- simulacija struktura
+- manipulacije nad stringovima, string.h
