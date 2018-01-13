@@ -121,7 +121,7 @@ class Memory(object):
         Mapping name->address in scopes and address->val in raw_memory is a way to simulate C memory system in python.
         In reality the raw_memory map would not be necessary since scope members would inherently have addresses.
 
-        Possible values are Number(ctype, value), FunctionDecl(C Fun), <function> (Py Fun)
+        Possible values are Number(ctype, value), FunctionDecl(C Fun), <function> (Py Fun), StructDecl
     """
 
     # Addresses start from this number and always grow
@@ -164,6 +164,11 @@ class Memory(object):
         """ Reserves space for a fun variable """
         # random fixed size for functions
         self._declare(name, 32, None)
+
+    def declare_struct(self, name):
+        """ Reserves space for a struct definition """
+        # random fixed size for structs
+        self._declare(name, 16, None)
 
     def declare_num(self, c_type, name):
         """ Reserves space for a num variable """

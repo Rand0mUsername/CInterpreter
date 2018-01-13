@@ -29,6 +29,13 @@ class Type(AstNode):
         AstNode.__init__(self, line)
         self.c_type = c_type
 
+
+class StructType(AstNode):
+    def __init__(self, line, c_type):
+        AstNode.__init__(self, line)
+        self.c_type = c_type  # struct name
+
+
 class Var(AstNode):
     def __init__(self, token, line):
         AstNode.__init__(self, line)
@@ -92,6 +99,13 @@ class FunctionCall(AstNode):
         self.name = name
         # a list of Param AstNodes
         self.args = args
+
+
+class FieldAccess(AstNode):
+    def __init__(self, var_name, field_name, line):
+        AstNode.__init__(self, line)
+        self.var_name = var_name  # Var node
+        self.field_name = field_name  # string
 
 
 class SwitchStmt(AstNode):
@@ -180,6 +194,13 @@ class VarDecl(AstNode):
         # Variable name and type nodes
         self.var_node = var_node
         self.type_node = type_node
+
+
+class StructDecl(AstNode):
+    def __init__(self, name, fields, line):
+        AstNode.__init__(self, line)
+        self.name = name  # string
+        self.fields = fields  # dict of name->ctype
 
 
 class IncludeLibrary(AstNode):

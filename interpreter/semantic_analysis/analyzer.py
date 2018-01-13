@@ -3,7 +3,7 @@ from ..syntax_analysis.tree import *
 from .table import *
 from ..common.utils import get_functions, get_constants, MessageColor
 from ..common.visitor import Visitor
-from ..common.ctype import CType
+from ..common.ctype import CType, StructCType
 
 
 class SemanticError(Exception):
@@ -67,6 +67,20 @@ class SemanticAnalyzer(Visitor):
                 "Undeclared mandatory function main"
             )
         self.current_scope = self.current_scope.enclosing_scope
+
+    def visit_StructDecl(self, node):
+        """ name fields """
+        struct_symbol = StructSymbol(StructCType(node.name), node.fields)
+
+        if self.current_scope.lookup(node.name, current_scope_only=True):
+            self.error(
+                "Error: Duplicate identifier '{}' found at line {}".format(
+                    node.name,
+                    node.line
+                )
+            )
+
+        self.current_scope.insert(struct_symbol)
 
     def visit_VarDecl(self, node):
         """ type_node var_node """
@@ -392,7 +406,8 @@ class SemanticAnalyzer(Visitor):
             return True
         if isinstance(node, UnOp) and node.token.type == ASTERISK and isinstance(node.expr, Var):
             return True
-
+        if isinstance(node, FieldAccess):
+            return True
         return False
 
     def visit_Assignment(self, node):
@@ -454,6 +469,47 @@ class SemanticAnalyzer(Visitor):
 
         # Get type symbol from var symbol and construct a CType based on its name
         return var_symbol.c_type
+
+    def visit_FieldAccess(self, node):
+        # check if var exists
+        var_symbol = self.current_scope.lookup(node.var_name)
+        if var_symbol is None:
+            self.error(
+                "Var not found '{}' at line {}".format(
+                    var_symbol.name,
+                    node.line
+                )
+            )
+        if not isinstance(var_symbol.c_type, StructCType):
+            self.error(
+                "Var not a struct '{}' at line {}".format(
+                    var_symbol.name,
+                    node.line
+                )
+            )
+        # check for field in struct definition: we could also just define all a.b vars
+        struct_symbol = self.current_scope.lookup(var_symbol.c_type.name)
+        if node.field_name not in struct_symbol.fields:
+            self.error(
+                "No field '{}' in struct '{}' at line {}".format(
+                    node.field_name,
+                    var_symbol.c_type.name,
+                    node.line
+                )
+            )
+        return struct_symbol.fields[node.field_name]
+
+    def visit_StructType(self, node):
+        struct_symbol = self.current_scope.lookup(node.c_type.name)
+        if struct_symbol is None or not isinstance(struct_symbol, StructSymbol):
+            self.error(
+                "Struct name not found '{}' at line {}".format(
+                    node.c_type.name,
+                    node.line
+                )
+            )
+        return struct_symbol.c_type
+
 
     def visit_Type(self, node):
         if node.c_type.pointer:

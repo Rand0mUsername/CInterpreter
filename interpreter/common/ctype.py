@@ -1,6 +1,11 @@
 import random
 
 
+class StructCType:
+    def __init__(self, name):
+        self.name = name
+
+
 class CType:
 
     # groups of text specifiers

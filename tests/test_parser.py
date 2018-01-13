@@ -248,6 +248,24 @@ class ParserTestCase(unittest.TestCase):
                     """)
             parser.parse()
 
+    def test_struct(self):
+        parser = self.make_parser("""
+                    struct s {
+                        int a, b;
+                        char c;
+                    };
+                    
+                    int main() {
+                        int x = 2;
+                        int y;
+                        struct s z;
+                        z.a = 3;
+                        printf("%d %d\n", x, z.a);
+                        return 0;
+                    }
+                """)
+        parser.parse()
+
 
 if __name__ == '__main__':
     unittest.main()

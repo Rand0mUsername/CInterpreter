@@ -7,15 +7,30 @@
 
                 function_declaration        : decl_type_spec ID LPAREN parameters RPAREN compound_statement
 
-                function_body               : LBRACKET (declaration | statement)* RBRACKET
-
                 parameters                  : decl_type_spec variable (COMMA decl_type_spec variable)*
 
-                declaration                 : type_spec init_declarator_list SEMICOLON
+                function_body               : LBRACKET (declaration | statement)* RBRACKET
 
+
+
+
+
+                declaration                 : struct_declaration
+                                            | var_declaration
+
+                var_declaration             : decl_type_spec init_declarator_list SEMICOLON
                 init_declarator_list        : init_declarator (COMMA init_declarator)*
-
                 init_declarator             : variable (ASSIGN assignment_expression)?
+
+                struct_declaration          : STRUCT ID LBRACKET struct_field_declaration* RBRACKET SEMICOLON
+                struct_field_declaration    : decl_type_spec struct_declarator_list SEMICOLON
+                struct_declarator_list      : variable (COMMA variable)*
+
+
+
+
+
+
 
                 statement                   : iteration_statement
                                             | selection_statement
@@ -88,6 +103,7 @@
 
                 postfix_expression          : primary_expression INC_OP
                                             | primary_expression DEC_OP
+                                            | primary_expression DOT ID
                                             | primary_expression LPAREN argument_expression_list? RPAREN
 
                 argument_expression_list    : assignment_expression (COMMA assignment_expression)*
@@ -96,11 +112,14 @@
                                             | constant
                                             | string
                                             | variable
+                                            | ASTERISK? variable
+                                            | ID DOT ID
 
                 constant                    : INTEGER_CONST
                                             | REAL_CONST
 
                 decl_type_spec              : type_spec+ ASTERISK?
+                                            | STRUCT ID
 
                 type_spec                   : SHORT
                                             | LONG

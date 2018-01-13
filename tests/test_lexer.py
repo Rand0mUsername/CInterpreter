@@ -126,6 +126,13 @@ class LexerTestCase(unittest.TestCase):
             lexer=lexer
         )
 
+    def test_struct(self):
+        lexer = Lexer('struct s { } ;')
+        self.check_list(
+            STRUCT, ID, LBRACKET, RBRACKET, SEMICOLON,
+            lexer=lexer
+        )
+
     
 if __name__ == '__main__':
     unittest.main()

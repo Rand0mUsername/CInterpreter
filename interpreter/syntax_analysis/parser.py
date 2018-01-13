@@ -3,7 +3,7 @@
 from ..lexical_analysis.token_type import *
 from .tree import *
 from ..common.utils import restorable
-from ..common.ctype import CType
+from ..common.ctype import CType, StructCType
 
 
 class SyntaxError(Exception):
@@ -52,7 +52,7 @@ class Parser(object):
         """
         declarations = []
 
-        while self.current_token.type in TYPE_SPECIFIERS or self.current_token.type == HASH:
+        while self.current_token.type in TYPE_SPECIFIERS or self.current_token.type in [STRUCT, HASH]:
             if self.current_token.type == HASH:
                 declarations.append(self.include_library())
             elif self.check_function():
@@ -94,6 +94,8 @@ class Parser(object):
     @restorable
     def check_function(self):
         self.decl_type_spec()
+        if self.current_token.type != ID:
+            return False
         self.eat(ID)
         return self.current_token.type == LPAREN
 
@@ -122,7 +124,7 @@ class Parser(object):
         result = []
         self.eat(LBRACKET)
         while self.current_token.type != RBRACKET:
-            if self.current_token.type in TYPE_SPECIFIERS:
+            if self.current_token.type in TYPE_SPECIFIERS or self.current_token.type == STRUCT:
                 result.extend(self.declaration())
             else:
                 result.append(self.statement())
@@ -154,7 +156,75 @@ class Parser(object):
 
     def declaration(self):
         """
-        declaration                 : decl_type_spec init_declarator_list SEMICOLON
+        declaration                 : STRUCT ID LBRACKET struct_field_declaration* RBRACKET SEMICOLON
+                                    | var_declaration
+        """
+        # returns a LIST of declarations
+        if self.check_struct_declaration():
+            return [self.struct_declaration()]
+        else:
+            return self.var_declaration()
+
+    @restorable
+    def check_struct_declaration(self):
+        if self.current_token.type != STRUCT:
+            return False
+        self.eat(STRUCT)
+        if self.current_token.type != ID:
+            return False
+        self.eat(ID)
+        return self.current_token.type == LBRACKET
+
+    def struct_declaration(self):
+        self.eat(STRUCT)
+        name = self.current_token.value
+        self.eat(ID)
+        self.eat(LBRACKET)
+        fields = []
+        while self.current_token.type != RBRACKET:
+            fields.extend(self.struct_field_declaration())
+
+        # convert these VarDecls to a name->c_type dict
+        fields_dict = {}
+        for field in fields:
+            fields_dict[field.var_node.value] = field.type_node.c_type
+
+        self.eat(RBRACKET)
+        self.eat(SEMICOLON)
+        return StructDecl(
+            name=name,
+            fields=fields_dict,  # name->type
+            line=self.lexer.line
+        )
+
+    def struct_field_declaration(self):
+        """
+        struct_field_declaration    : decl_type_spec struct_declarator_list SEMICOLON        """
+        fields = list()
+        type_node = self.decl_type_spec()
+        for var in self.struct_declarator_list():
+            fields.append(VarDecl(
+                type_node=type_node,
+                var_node=var,
+                line=self.lexer.line
+            ))
+        self.eat(SEMICOLON)
+        return fields
+
+    def struct_declarator_list(self):
+        """
+        struct_declarator_list      : variable (COMMA variable)*
+        """
+        vars = list()
+        vars.append(self.variable())
+        while self.current_token.type == COMMA:
+            self.eat(COMMA)
+            vars.append(self.variable())
+        return vars
+
+    def var_declaration(self):
+        """
+        var_declaration             : decl_type_spec init_declarator_list SEMICOLON
         """
         result = list()
         type_node = self.decl_type_spec()
@@ -228,7 +298,7 @@ class Parser(object):
         result = []
         self.eat(LBRACKET)
         while self.current_token.type != RBRACKET:
-            if self.current_token.type in TYPE_SPECIFIERS:
+            if self.current_token.type in TYPE_SPECIFIERS or self.current_token.type == STRUCT:
                 result.extend(self.declaration())
             else:
                 result.append(self.statement())
@@ -306,7 +376,7 @@ class Parser(object):
             self.eat(LBRACKET)
             result = []
             while self.current_token.type != RBRACKET:
-                if self.current_token.type in TYPE_SPECIFIERS:
+                if self.current_token.type in TYPE_SPECIFIERS or self.current_token.type == STRUCT:
                     result.extend(self.declaration())
                 elif self.current_token.type in (CASE, DEFAULT):
                     result.append(self.switch_case_label())
@@ -420,6 +490,11 @@ class Parser(object):
             self.eat(ASTERISK)
         if self.current_token.type == ID:
             self.eat(ID)
+            if self.current_token.type == DOT:
+                self.eat(DOT)
+                if not self.current_token.type == ID:
+                    return False
+                self.eat(ID)
             return self.current_token.type.endswith('ASSIGN')
         return False
 
@@ -691,6 +766,7 @@ class Parser(object):
         """
         postfix_expression          : primary_expression INC_OP
                                     | primary_expression DEC_OP
+                                    | primary_expression DOT ID
                                     | primary_expression LPAREN argument_expression_list? RPAREN
         """
         node = self.primary_expression()
@@ -716,6 +792,18 @@ class Parser(object):
                 args=args,
                 line=self.lexer.line
             )
+        elif self.current_token.type == DOT:
+            self.eat(DOT)
+            if not isinstance(node, Var):
+                self.error("Struct var must be string")
+            var_name = node.token.value
+            field_var = self.variable()
+            field_name = field_var.token.value
+            node = FieldAccess(
+                var_name=var_name,
+                field_name=field_name,
+                line=self.lexer.line
+            )
         return node
 
     def argument_expression_list(self):
@@ -733,9 +821,11 @@ class Parser(object):
         primary_expression          : LPAREN expression RPAREN
                                     | constant
                                     | string
-                                    | variable
+                                    | ASTERISK? variable
+                                    | ID DOT ID
         """
         token = self.current_token
+
         if token.type == LPAREN:
             self.eat(LPAREN)
             node = self.expression()
@@ -754,8 +844,18 @@ class Parser(object):
             )
             return node
         else:
-            return self.variable()
-            # TODO: [E] and case E: need to be const-exprs
+            node = self.variable()
+            if self.current_token.type == DOT:
+                self.eat(DOT)
+                field_var = self.variable()
+                return FieldAccess(
+                    var_name=node.token.value,
+                    field_name=field_var.token.value,
+                    line=self.lexer.line
+                )
+            else:
+                return node  # just a var
+        # TODO: [E] and case E: need to be const-exprs
 
     def constant(self):
         """
@@ -787,8 +887,17 @@ class Parser(object):
 
     def decl_type_spec(self):
         """
-        decl_type_spec              : type_spec+ ASTERISK?
+        decl_type_spec              : type_spec+ ASTERISK? | STRUCT ID
         """
+        if self.current_token.type == STRUCT:
+            self.eat(STRUCT)
+            name = self.current_token.value
+            self.eat(ID)
+            return StructType(
+                line=self.lexer.line,
+                c_type=StructCType(name)
+            )
+
         # Build a string
         specifiers = []
         while self.current_token.type in TYPE_SPECIFIERS:

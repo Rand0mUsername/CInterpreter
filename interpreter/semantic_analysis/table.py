@@ -28,6 +28,23 @@ class VarSymbol(Symbol):
     __repr__ = __str__
 
 
+class StructSymbol(Symbol):
+    """ A symbol representing a struct """
+    def __init__(self, c_type, fields):
+        super(StructSymbol, self).__init__(c_type.name)
+        self.c_type = c_type
+        self.fields = fields
+
+    def __str__(self):
+        return "<{class_name}(name='{name}' fields='{fields}'))>".format(
+            class_name=self.__class__.__name__,
+            name=self.name,
+            fields=self.fields
+        )
+
+    __repr__ = __str__
+
+
 class ConstSymbol(Symbol):
     """ A symbol representing a constant """
     def __init__(self, name, c_type):

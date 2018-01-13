@@ -327,6 +327,67 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                         }
                     """)
 
+    def test_struct(self):
+        self.analyze("""
+            #include <stdio.h>
+            struct s {
+                int a, b;
+                char c;
+            };
+            
+            int main() {
+                int x = 2;
+                int y;
+                struct s z;
+                z.a = 3;
+                printf("%d %d\n", x, z.a);
+                return 0;
+            }
+        """)
+
+    def test_struct_fail(self):
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                #include <stdio.h>
+                struct s {
+                    int a;
+                };
+                
+                int main() {
+                    struct nope z;
+                    return 0;
+                }
+            """)
+
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                #include <stdio.h>
+                struct s {
+                    int a;
+                };
+                
+                int main() {
+                    struct s z;
+                    printf("%d\n", z.nope);
+                    return 0;
+                }
+            """)
+
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                #include <stdio.h>
+                struct s {
+                    int a;
+                };
+
+                int main() {
+                    struct s z;
+                    int t;
+                    printf("%d\n", t.a);
+                    return 0;
+                }
+            """)
+
 
 if __name__ == '__main__':
     unittest.main()

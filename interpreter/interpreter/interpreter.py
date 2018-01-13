@@ -7,7 +7,7 @@ from ..syntax_analysis.tree import *
 from ..semantic_analysis.analyzer import SemanticAnalyzer
 from ..common.utils import get_functions, get_constants, MessageColor
 from ..common.visitor import Visitor
-from ..common.ctype import CType
+from ..common.ctype import CType, StructCType
 
 
 class ControlFlowFlag:
@@ -33,7 +33,7 @@ class Interpreter(Visitor):
         (IncludeLibrary, FunctionDecl, VarDecl+Assignment)
         """
         for child in node.children:
-            assert(isinstance(child, (FunctionDecl, IncludeLibrary, VarDecl)))
+            assert(isinstance(child, (FunctionDecl, IncludeLibrary, VarDecl, StructDecl)))
             self.visit(child)
 
     def visit_IncludeLibrary(self, node):
@@ -57,7 +57,19 @@ class Interpreter(Visitor):
 
     def visit_VarDecl(self, node):
         """ Declares a new variable """
-        self.memory.declare_num(node.type_node.c_type, node.var_node.value)
+        c_type = node.type_node.c_type
+        if isinstance(c_type, StructCType):
+            struct_decl_node = self.memory[c_type.name]
+            for field_name, field_c_type in struct_decl_node.fields.items():
+                full_name = node.var_node.value + '.' + field_name
+                self.memory.declare_num(field_c_type, full_name)
+        else:
+            self.memory.declare_num(node.type_node.c_type, node.var_node.value)
+
+    def visit_StructDecl(self, node):
+        """ Declares a new struct """
+        self.memory.declare_struct(node.name)
+        self.memory[node.name] = node
 
     # functions
     # these visits return function return value (as a Number)
@@ -224,12 +236,15 @@ class Interpreter(Visitor):
         if isinstance(lvalue_node, Var):
             var_name = lvalue_node.value
             return self.memory.get_value_in_scope(var_name)
-        else:  # UnOp(*, Ptr)
+        elif isinstance(lvalue_node, UnOp):  # UnOp(*, Ptr)
             ptr_name = lvalue_node.expr.value
             return self.memory[ptr_name].value
+        else:  # FieldAccess
+            full_name = lvalue_node.var_name + '.' + lvalue_node.field_name
+            return self.memory.get_value_in_scope(full_name)
 
     def visit_Assignment(self, node):
-        # node.left is lvalue - Var/UnOp(*, Var)
+        # node.left is lvalue - Var/UnOp(*, Var)/FieldAccess
         address = self.get_lvalue_address(node.left)
 
         # get two operands
@@ -343,6 +358,10 @@ class Interpreter(Visitor):
             return self.visit(node.left) | self.visit(node.right)
         elif node.token.type == XOR_OP:
             return self.visit(node.left) ^ self.visit(node.right)
+
+    def visit_FieldAccess(self, node):
+        full_name = node.var_name + '.' + node.field_name
+        return self.memory[full_name]
 
     def visit_Num(self, node):
         if node.token.type == INTEGER_CONST:

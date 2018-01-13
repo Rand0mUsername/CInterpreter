@@ -24,6 +24,7 @@ RESERVED_KEYWORDS = {
     'switch': Token(SWITCH, 'switch'),
     'case': Token(CASE, 'case'),
     'default': Token(DEFAULT, 'default'),
+    'struct': Token(STRUCT, 'struct'),
 }
 
 class LexicalError(Exception):
