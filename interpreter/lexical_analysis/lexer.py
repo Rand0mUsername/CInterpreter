@@ -268,6 +268,10 @@ class Lexer(object):
                 self.advance(2)
                 return Token(NE_OP, '!=')
 
+            if self.current_char == '-' and self.peek(1) == '>':
+                self.advance(2)
+                return Token(ARROW, '->')
+
             # one-char tokens
 
             if self.current_char == '<':

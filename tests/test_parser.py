@@ -260,7 +260,10 @@ class ParserTestCase(unittest.TestCase):
                         int y;
                         struct s z;
                         z.a = 3;
-                        printf("%d %d\n", x, z.a);
+                        struct s * ptr;
+                        ptr = &z;
+                        ptr->b = 4;
+                        printf("%d %d %d\n", x, ptr->a, z.b);
                         return 0;
                     }
                 """)

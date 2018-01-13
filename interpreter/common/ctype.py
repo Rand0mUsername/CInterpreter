@@ -2,8 +2,9 @@ import random
 
 
 class StructCType:
-    def __init__(self, name):
+    def __init__(self, name, pointer=False):
         self.name = name
+        self.pointer = pointer
 
 
 class CType:

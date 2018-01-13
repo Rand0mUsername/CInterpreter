@@ -472,7 +472,7 @@ class SemanticAnalyzer(Visitor):
 
     def visit_FieldAccess(self, node):
         # check if var exists
-        var_symbol = self.current_scope.lookup(node.var_name)
+        var_symbol = self.current_scope.lookup(node.var.value)
         if var_symbol is None:
             self.error(
                 "Var not found '{}' at line {}".format(
@@ -487,17 +487,28 @@ class SemanticAnalyzer(Visitor):
                     node.line
                 )
             )
+
+        # check for ptr.field and struct->field
+        if (var_symbol.c_type.pointer and node.op_type == DOT) or \
+           (not var_symbol.c_type.pointer and node.op_type == ARROW):
+            self.error(
+                "Can't ptr.field or struct->field on line {}".format(
+                    node.line
+                )
+            )
+
+
         # check for field in struct definition: we could also just define all a.b vars
         struct_symbol = self.current_scope.lookup(var_symbol.c_type.name)
-        if node.field_name not in struct_symbol.fields:
+        if node.field.value not in struct_symbol.fields:
             self.error(
                 "No field '{}' in struct '{}' at line {}".format(
-                    node.field_name,
+                    node.field.value,
                     var_symbol.c_type.name,
                     node.line
                 )
             )
-        return struct_symbol.fields[node.field_name]
+        return struct_symbol.fields[node.field.value]
 
     def visit_StructType(self, node):
         struct_symbol = self.current_scope.lookup(node.c_type.name)

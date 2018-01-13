@@ -495,6 +495,11 @@ class Parser(object):
                 if not self.current_token.type == ID:
                     return False
                 self.eat(ID)
+            if self.current_token.type == ARROW:
+                self.eat(ARROW)
+                if not self.current_token.type == ID:
+                    return False
+                self.eat(ID)
             return self.current_token.type.endswith('ASSIGN')
         return False
 
@@ -792,16 +797,17 @@ class Parser(object):
                 args=args,
                 line=self.lexer.line
             )
-        elif self.current_token.type == DOT:
-            self.eat(DOT)
+        elif self.current_token.type in [DOT, ARROW]:
+            op_type = self.current_token.type
+            self.eat(op_type)
             if not isinstance(node, Var):
                 self.error("Struct var must be string")
-            var_name = node.token.value
-            field_var = self.variable()
-            field_name = field_var.token.value
+            var = node
+            field = self.variable()
             node = FieldAccess(
-                var_name=var_name,
-                field_name=field_name,
+                op_type=op_type,
+                var=var,
+                field=field,
                 line=self.lexer.line
             )
         return node
@@ -823,6 +829,7 @@ class Parser(object):
                                     | string
                                     | ASTERISK? variable
                                     | ID DOT ID
+                                    | ID ARROW ID
         """
         token = self.current_token
 
@@ -830,6 +837,9 @@ class Parser(object):
             self.eat(LPAREN)
             node = self.expression()
             self.eat(RPAREN)
+            if self.current_token.type == DOT:
+                self.eat(DOT)
+                field_var = self.variable()
             return node
         elif token.type in (INTEGER_CONST, REAL_CONST, CHAR_CONST):
             return self.constant()
@@ -849,8 +859,18 @@ class Parser(object):
                 self.eat(DOT)
                 field_var = self.variable()
                 return FieldAccess(
-                    var_name=node.token.value,
-                    field_name=field_var.token.value,
+                    op_type=DOT,
+                    var=node,
+                    field=field_var,
+                    line=self.lexer.line
+                )
+            elif self.current_token.type == ARROW:
+                self.eat(ARROW)
+                field_var = self.variable()
+                return FieldAccess(
+                    op_type=ARROW,
+                    var=node,
+                    field=field_var,
                     line=self.lexer.line
                 )
             else:
@@ -893,9 +913,15 @@ class Parser(object):
             self.eat(STRUCT)
             name = self.current_token.value
             self.eat(ID)
+
+            pointer = False
+            if self.current_token.type == ASTERISK:
+                pointer = True
+                self.eat(ASTERISK)
+
             return StructType(
                 line=self.lexer.line,
-                c_type=StructCType(name)
+                c_type=StructCType(name, pointer)
             )
 
         # Build a string

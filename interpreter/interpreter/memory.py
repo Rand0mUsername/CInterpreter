@@ -121,7 +121,7 @@ class Memory(object):
         Mapping name->address in scopes and address->val in raw_memory is a way to simulate C memory system in python.
         In reality the raw_memory map would not be necessary since scope members would inherently have addresses.
 
-        Possible values are Number(ctype, value), FunctionDecl(C Fun), <function> (Py Fun), StructDecl
+        Possible values are Number(ctype, value), FunctionDecl(C Fun), <function> (Py Fun), StructDecl, dict (struct m.)
     """
 
     # Addresses start from this number and always grow
@@ -173,6 +173,19 @@ class Memory(object):
     def declare_num(self, c_type, name):
         """ Reserves space for a num variable """
         self._declare(name, c_type.size_bytes(), Number(c_type))
+
+    def declare_struct_var(self, c_type, name):
+        """ Reserves space for a struct variable """
+        if c_type.pointer:
+            self.declare_num(CType.from_string('int'), name)
+            return
+        # non pointer struct
+        self._declare(name, 16, dict())
+        struct_decl_node = self[c_type.name]
+        for field_name, field_c_type in struct_decl_node.fields.items():
+            address = self.allocate(field_c_type.size_bytes())
+            self[name][field_name] = address
+            self.raw_memory[address] = Number(field_c_type)
 
     def find_key(self, key):
         """ Returns the scope with the given key starting from the current scope """

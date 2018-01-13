@@ -1,15 +1,17 @@
 #include <stdio.h>
-struct S {
+struct s {
     int a, b;
     char c;
 };
 
 int main() {
-    int a = 2;
-    int b = 3;
-    struct S z;
-    z.a = 4;
-    z.b = b;
-    printf("%d %d\n", a+z.a, b*z.b); // 6 9
+    int x = 2;
+    int y;
+    struct s z;
+    z.a = 3;
+    struct s * ptr;
+    ptr = &z;
+    ptr->b = 4;
+    printf("%d %d %d\n", x, ptr->a, z.b);
     return 0;
 }

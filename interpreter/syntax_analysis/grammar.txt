@@ -108,18 +108,19 @@
 
                 argument_expression_list    : assignment_expression (COMMA assignment_expression)*
 
-                primary_expression          : LPAREN expression RPAREN
+                primary_expression          : LPAREN expression RPAREN (DOT ID)?
                                             | constant
                                             | string
                                             | variable
                                             | ASTERISK? variable
                                             | ID DOT ID
+                                            | ID ARROW ID
 
                 constant                    : INTEGER_CONST
                                             | REAL_CONST
 
                 decl_type_spec              : type_spec+ ASTERISK?
-                                            | STRUCT ID
+                                            | STRUCT ID ASTERISK?
 
                 type_spec                   : SHORT
                                             | LONG

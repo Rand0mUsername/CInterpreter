@@ -48,6 +48,7 @@ SWITCH, DEFAULT, CASE = 'SWITCH', 'DEFAULT', 'CASE'
 
 # Struct
 STRUCT = 'STRUCT'
+ARROW = 'ARROW'
 
 # Names
 ID = 'ID'

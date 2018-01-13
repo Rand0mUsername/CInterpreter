@@ -329,21 +329,24 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
 
     def test_struct(self):
         self.analyze("""
-            #include <stdio.h>
-            struct s {
-                int a, b;
-                char c;
-            };
-            
-            int main() {
-                int x = 2;
-                int y;
-                struct s z;
-                z.a = 3;
-                printf("%d %d\n", x, z.a);
-                return 0;
-            }
-        """)
+                    #include <stdio.h>
+                    struct s {
+                        int a, b;
+                        char c;
+                    };
+                    
+                    int main() {
+                        int x = 2;
+                        int y;
+                        struct s z;
+                        z.a = 3;
+                        struct s * ptr;
+                        ptr = &z;
+                        ptr->b = 4;
+                        printf("%d %d %d\n", x, ptr->a, z.b);
+                        return 0;
+                    }
+                """)
 
     def test_struct_fail(self):
         with self.assertRaises(SemanticError):
@@ -384,6 +387,36 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                     struct s z;
                     int t;
                     printf("%d\n", t.a);
+                    return 0;
+                }
+            """)
+
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                #include <stdio.h>
+                struct s {
+                    int a;
+                };
+
+                int main() {
+                    struct s z;
+                    int t;
+                    printf("%d\n", z->a);
+                    return 0;
+                }
+            """)
+
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                #include <stdio.h>
+                struct s {
+                    int a;
+                };
+
+                int main() {
+                    struct s *z;
+                    int t;
+                    printf("%d\n", z.a);
                     return 0;
                 }
             """)

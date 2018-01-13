@@ -59,10 +59,8 @@ class Interpreter(Visitor):
         """ Declares a new variable """
         c_type = node.type_node.c_type
         if isinstance(c_type, StructCType):
-            struct_decl_node = self.memory[c_type.name]
-            for field_name, field_c_type in struct_decl_node.fields.items():
-                full_name = node.var_node.value + '.' + field_name
-                self.memory.declare_num(field_c_type, full_name)
+            # declare a struct var
+            self.memory.declare_struct_var(node.type_node.c_type, node.var_node.value)
         else:
             self.memory.declare_num(node.type_node.c_type, node.var_node.value)
 
@@ -239,9 +237,16 @@ class Interpreter(Visitor):
         elif isinstance(lvalue_node, UnOp):  # UnOp(*, Ptr)
             ptr_name = lvalue_node.expr.value
             return self.memory[ptr_name].value
-        else:  # FieldAccess
-            full_name = lvalue_node.var_name + '.' + lvalue_node.field_name
-            return self.memory.get_value_in_scope(full_name)
+        elif isinstance(lvalue_node, FieldAccess):  # FieldAccess
+            if lvalue_node.op_type == ARROW:
+                var_addr = self.memory[lvalue_node.var.value].value
+                return self.memory.get_at_address(var_addr)[lvalue_node.field.value]
+            else:
+                return self.memory[lvalue_node.var.value][lvalue_node.field.value]
+        elif isinstance(lvalue_node, BinOp): # Var a -> Var b
+            return self.memory[lvalue_node.left.value][lvalue_node.right.value]
+        else:
+            raise RuntimeError("Can't get lvalue address")
 
     def visit_Assignment(self, node):
         # node.left is lvalue - Var/UnOp(*, Var)/FieldAccess
@@ -358,10 +363,16 @@ class Interpreter(Visitor):
             return self.visit(node.left) | self.visit(node.right)
         elif node.token.type == XOR_OP:
             return self.visit(node.left) ^ self.visit(node.right)
+        elif node.token.type == ARROW:
+            self.memory.get_at_address(self.memory[node.left.value][node.right.value])
 
     def visit_FieldAccess(self, node):
-        full_name = node.var_name + '.' + node.field_name
-        return self.memory[full_name]
+        if node.op_type == ARROW:
+            var_addr = self.memory[node.var.value].value
+            addr = self.memory.get_at_address(var_addr)[node.field.value]
+        else:
+            addr = self.memory[node.var.value][node.field.value]
+        return self.memory.get_at_address(addr)
 
     def visit_Num(self, node):
         if node.token.type == INTEGER_CONST:

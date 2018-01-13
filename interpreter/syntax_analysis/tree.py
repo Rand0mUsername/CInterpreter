@@ -102,10 +102,11 @@ class FunctionCall(AstNode):
 
 
 class FieldAccess(AstNode):
-    def __init__(self, var_name, field_name, line):
+    def __init__(self, op_type, var, field, line):
         AstNode.__init__(self, line)
-        self.var_name = var_name  # Var node
-        self.field_name = field_name  # string
+        self.op_type = op_type # -> or .
+        self.var = var  # Var node
+        self.field = field  # Var field
 
 
 class SwitchStmt(AstNode):

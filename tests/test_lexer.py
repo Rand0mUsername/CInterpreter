@@ -127,9 +127,9 @@ class LexerTestCase(unittest.TestCase):
         )
 
     def test_struct(self):
-        lexer = Lexer('struct s { } ;')
+        lexer = Lexer('struct s { } ; a->b')
         self.check_list(
-            STRUCT, ID, LBRACKET, RBRACKET, SEMICOLON,
+            STRUCT, ID, LBRACKET, RBRACKET, SEMICOLON, ID, ARROW, ID,
             lexer=lexer
         )
 
