@@ -6,6 +6,12 @@ class StructCType:
         self.name = name
         self.pointer = pointer
 
+    def size_bytes(self):
+        if self.pointer:
+            return 4
+        else:
+            return 16
+
 
 class CType:
 
@@ -71,7 +77,7 @@ class CType:
         raise RuntimeError('Failed to return size of a CType {}'.format(str(self)))
 
     def dereference(self):
-        assert self.pointer
+        # assert self.pointer
         return CType(self.len_spec, self.sign_spec, self.type_spec, False)
 
     def __repr__(self):

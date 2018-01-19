@@ -51,7 +51,7 @@ def scanf(*args):
 
     # Cast tokens and perform assignments
     for spec, address, val in zip(specifiers, addresses, tokens):
-        memory.set_at_address(address.value, Number(CType.from_string(get_type_name(spec)), val))
+        memory.set_at_address(address, Number(CType.from_string(get_type_name(spec)), val))
 
     return len(tokens)
 

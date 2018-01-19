@@ -94,7 +94,7 @@
 
                 unary_expression            : INC_OP primary_expression
                                             | DEC_OP primary_expression
-                                            | AMPERSAND variable
+                                            | AMPERSAND cast_expression
                                             | ASTERISK cast_expression
                                             | PLUS cast_expression
                                             | MINUS cast_expression

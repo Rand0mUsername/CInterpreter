@@ -1,6 +1,6 @@
 
 from .number import Number, ConstNumber
-from ..common.ctype import CType
+from ..common.ctype import CType, StructCType
 
 
 class Scope(object):
@@ -185,7 +185,10 @@ class Memory(object):
         for field_name, field_c_type in struct_decl_node.fields.items():
             address = self.allocate(field_c_type.size_bytes())
             self[name][field_name] = address
-            self.raw_memory[address] = Number(field_c_type)
+            if isinstance(field_c_type, StructCType):  # also field_c_type is a pointer
+                self.raw_memory[address] = Number(CType.from_string('int'))
+            else:
+                self.raw_memory[address] = Number(field_c_type)
 
     def find_key(self, key):
         """ Returns the scope with the given key starting from the current scope """

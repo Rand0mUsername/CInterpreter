@@ -7,7 +7,7 @@ class InterpreterTestCase(unittest.TestCase):
         return Interpreter.run(text)
 
     def test_files(self):
-        to_test = 'ex9_struct.c'
+        to_test = None
         for filename in os.listdir('./testdata'):
             # temporary fix to test only one files
             if to_test is not None and filename != to_test:

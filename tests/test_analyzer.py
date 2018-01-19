@@ -421,6 +421,16 @@ class SemanticAnalyzerTestCase(unittest.TestCase):
                 }
             """)
 
+        with self.assertRaises(SemanticError):
+            self.analyze("""
+                #include <stdio.h>
+                struct s {
+                    int a;
+                    struct s nope;
+                };
+                int main() {return 0;}
+            """)
+
 
 if __name__ == '__main__':
     unittest.main()

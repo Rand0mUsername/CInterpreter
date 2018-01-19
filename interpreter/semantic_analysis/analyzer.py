@@ -72,6 +72,15 @@ class SemanticAnalyzer(Visitor):
         """ name fields """
         struct_symbol = StructSymbol(StructCType(node.name), node.fields)
 
+        for name, c_type in node.fields.items():
+            if isinstance(c_type, StructCType) and not c_type.pointer:
+                self.error(
+                    "Error: Struct in struct '{}' found at line {}".format(
+                        node.name,
+                        node.line
+                    )
+                )
+
         if self.current_scope.lookup(node.name, current_scope_only=True):
             self.error(
                 "Error: Duplicate identifier '{}' found at line {}".format(
@@ -321,21 +330,23 @@ class SemanticAnalyzer(Visitor):
 
         # If one pointer allow only PLUS and MINUS with int
         if left_type.pointer:
-            if right_type.type_spec != 'int' or (node.token.type != PLUS and node.token.type != MINUS):
+            if right_type.type_spec != 'int' or (node.token.type not in [PLUS, MINUS, NE_OP]):
                 self.error("Unsupported pointer arithmetic with types (<{}> and <{}>) at bin op {} at line {}".format(
                     str(left_type),
                     str(right_type),
                     node.token.type,
                     node.line
                 ))
+            return left_type
         elif right_type.pointer:
-            if left_type.type_spec != 'int' or (node.token.type != PLUS and node.token.type != MINUS):
+            if left_type.type_spec != 'int' or (node.token.type not in [PLUS, MINUS, NE_OP]):
                 self.error("Unsupported pointer arithmetic with types (<{}> and <{}>) at bin op {} at line {}".format(
                     str(left_type),
                     str(right_type),
                     node.token.type,
                     node.line
                 ))
+            return right_type
 
         # Return the resulting type
         return CType.combine_types(left_type, right_type)
@@ -363,7 +374,7 @@ class SemanticAnalyzer(Visitor):
 
         # ASTERISK -> pointer
         if node.token.type == ASTERISK:
-            if expr_type.pointer:
+            if expr_type.pointer or expr_type.type_spec == 'int': # TODO: debatable: pointer hierarchy not impl
                 return expr_type.dereference()
             else:
                 self.error(
@@ -508,6 +519,8 @@ class SemanticAnalyzer(Visitor):
                     node.line
                 )
             )
+        if isinstance(struct_symbol.fields[node.field.value], StructCType):
+            return CType.from_string('int')  # just a pointer
         return struct_symbol.fields[node.field.value]
 
     def visit_StructType(self, node):
