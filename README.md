@@ -1,25 +1,3 @@
 CInterpreter
 =============
-CInterpreter is a very small C interpreter written in Python from scratch. Project was written as a part of course
-Compiler Construction at [The Faculty Of Computer Science](https://raf.edu.rs/).
-
-Interpreter was designed and written by me, without using additional libraries. You can easily rewrite this to any
-other language. With this interpreter you can execute codes like following:
-
-* [example1](examples/c/example1.c)
-* [example2](examples/c/example2.c)
-* [example3](examples/c/example3.c)
-* [example4](examples/c/example4.c)
-
-## Setup
-**Prerequsite**:<br/>
-    - Install [python3.5](https://www.python.org) or later, preferably use a virtualenv.<br/>
-
-### Running interpreter
-To execute c program, run `python3 __main__.py -f <file>`.
-
-For example, to run the [example1](examples/c/example1.c):
-```bash
-cd CInterpreter
-python3 __main__.py -f examples/c/example1.c
-```
+A fork of a C interpreter from [SKantar/CInterpreter](https://github.com/skantar/CInterpreter/) with several features added as a part of Compiler Construction coursework. Implemented a number of C STL functions and added support for more datatypes, pointers, arrays, memory addressing, dynamic allocation and control flow statements. 
